@@ -9,7 +9,8 @@
 <div class="alert alert-info alert-dismissible fade show" role="alert">
   <i class="bi bi-pc-display-horizontal"></i>
   <strong>Requisito:</strong> O arquivo <strong>NLAG_Impressora.exe</strong>
-  precisa estar rodando no PC conectado à Zebra (<code>DEC-Zebra003 / 10.12.11.119</code>).
+  precisa estar rodando no PC conectado à rede.
+  Impressora: <code>DEC-Zebra003 — 10.12.11.119</code>
   <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
 </div>
 
@@ -22,7 +23,6 @@
   </div>
   <div class="card-body">
 
-    <!-- RESULTADO DA IMPRESSÃO -->
     <div id="div-status" class="d-none mb-3"></div>
 
     <div class="row g-3">
@@ -50,7 +50,7 @@
         </div>
       </div>
 
-      <!-- DESCRIÇÃO (readonly) -->
+      <!-- DESCRIÇÃO -->
       <div class="col-md-5">
         <label class="form-label fw-bold">Descrição</label>
         <input type="text" id="info-descricao" class="form-control form-control-lg"
@@ -58,7 +58,7 @@
                placeholder="Carregada automaticamente" readonly>
       </div>
 
-      <!-- UNIDADE (readonly) -->
+      <!-- UNIDADE -->
       <div class="col-md-2">
         <label class="form-label fw-bold">Unidade</label>
         <input type="text" id="info-unidade" class="form-control form-control-lg"
@@ -76,14 +76,12 @@
                  class="form-control form-control-lg"
                  placeholder="http://10.12.11.XX:5001">
           <button type="button" class="btn btn-outline-secondary"
-                  onclick="testarServidor()" title="Testar conexão">
+                  onclick="testarServidor()">
             <i class="bi bi-wifi"></i> Testar
           </button>
         </div>
         <div class="form-text">
-          <i class="bi bi-info-circle"></i>
-          Digite o IP do PC onde o exe roda. Ex: <code>http://10.12.11.50:5001</code>.
-          Salvo automaticamente no navegador.
+          IP do PC onde o exe roda. Ex: <code>http://10.12.11.50:5001</code>. Salvo automaticamente.
         </div>
       </div>
 
@@ -143,19 +141,15 @@
 
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script>
-// ── Chave do localStorage ──
 const LS_KEY = 'nlag_servidor_impressora';
-let leitorAtivo  = null;
+let leitorAtivo   = null;
 let materialAtual = {{ ('{"codigo":"' + material.codigo|string + '","descricao":"' + material.descricao|string + '","unidade":"' + material.unidade|string + '"}') | safe if material else 'null' }};
 
-// ── Ao carregar a página ──
 window.addEventListener('load', function () {
-  // Carrega servidor salvo
   const srv = localStorage.getItem(LS_KEY) || '';
   document.getElementById('campo-servidor').value = srv;
   if (srv) testarServidor(true);
 
-  // Carrega material se veio por URL
   const c = document.getElementById('campo-codigo').value.trim();
   if (c && !materialAtual) buscarMaterial(c);
   if (materialAtual) {
@@ -164,7 +158,11 @@ window.addEventListener('load', function () {
   }
 });
 
-// ── Busca material via API ──
+document.getElementById('campo-servidor').addEventListener('blur', function () {
+  const v = this.value.trim();
+  if (v) { localStorage.setItem(LS_KEY, v); testarServidor(true); }
+});
+
 function buscarMaterial(codigo) {
   if (!codigo) return;
   fetch('/api/material/' + encodeURIComponent(codigo.trim().toUpperCase()))
@@ -174,7 +172,6 @@ function buscarMaterial(codigo) {
         materialAtual = d;
         document.getElementById('info-descricao').value = d.descricao;
         document.getElementById('info-unidade').value   = d.unidade;
-        // Recarrega página para mostrar preview
         window.location.href = '/imprimir_etiqueta?codigo=' + encodeURIComponent(d.codigo);
       } else {
         materialAtual = null;
@@ -188,19 +185,10 @@ document.getElementById('campo-codigo').addEventListener('change', function () {
   buscarMaterial(this.value.trim());
 });
 
-// ── Salva servidor ao sair do campo ──
-document.getElementById('campo-servidor').addEventListener('blur', function () {
-  const v = this.value.trim();
-  if (v) { localStorage.setItem(LS_KEY, v); testarServidor(true); }
-});
-
-// ── Testa se o exe está rodando ──
 function testarServidor(silencioso = false) {
   const srv = document.getElementById('campo-servidor').value.trim();
   if (!srv) { if (!silencioso) alert('Informe o endereço do servidor!'); return; }
-
   setBadge('warning', '⏳ Verificando...');
-
   fetch('/api/testar_servidor', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -215,13 +203,9 @@ function testarServidor(silencioso = false) {
       setBadge('danger', '🔴 Offline');
       if (!silencioso) mostrarStatus('danger', '❌ ' + d.msg);
     }
-  }).catch(() => {
-    setBadge('danger', '🔴 Erro');
-    if (!silencioso) mostrarStatus('danger', '❌ Erro ao testar conexão.');
-  });
+  }).catch(() => { setBadge('danger', '🔴 Erro'); });
 }
 
-// ── Gera ZPL no front (igual ao Python) ──
 function gerarZPL(codigo, descricao, dataHora, copias) {
   const desc1 = descricao.substring(0, 35);
   const desc2 = descricao.substring(35, 70).trim();
@@ -245,7 +229,6 @@ function gerarZPL(codigo, descricao, dataHora, copias) {
   return z;
 }
 
-// ── Envia para impressora ──
 function imprimirEtiqueta() {
   const codigo   = document.getElementById('campo-codigo').value.trim().toUpperCase();
   const servidor = document.getElementById('campo-servidor').value.trim();
@@ -267,7 +250,7 @@ function imprimirEtiqueta() {
 
   btn.disabled  = true;
   btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Enviando...';
-  mostrarStatus('info', '⏳ Enviando ' + copias + ' etiqueta(s) para a Zebra...');
+  mostrarStatus('info', `⏳ Enviando ${copias} etiqueta(s) para DEC-Zebra003...`);
 
   fetch('/api/imprimir_zpl', {
     method: 'POST',
@@ -292,7 +275,6 @@ function imprimirEtiqueta() {
   });
 }
 
-// ── Helpers ──
 function mostrarStatus(tipo, msg) {
   const div = document.getElementById('div-status');
   div.className = `alert alert-${tipo}`;
@@ -307,7 +289,6 @@ function setBadge(tipo, txt) {
   b.innerHTML = txt;
 }
 
-// ── Câmera ──
 function abrirCamera() {
   document.getElementById('camera-container').classList.remove('d-none');
   leitorAtivo = new Html5Qrcode('leitor-avulso');
