@@ -39,7 +39,8 @@
       <!-- DESCRIÇÃO -->
       <div class="col-md-5">
         <label class="form-label fw-bold">Descrição</label>
-        <input type="text" id="info-descricao" class="form-control form-control-lg"
+        <input type="text" id="info-descricao"
+               class="form-control form-control-lg"
                value="{{ material.descricao if material else '' }}"
                placeholder="Carregada automaticamente" readonly>
       </div>
@@ -47,7 +48,8 @@
       <!-- UNIDADE -->
       <div class="col-md-2">
         <label class="form-label fw-bold">Unidade</label>
-        <input type="text" id="info-unidade" class="form-control form-control-lg"
+        <input type="text" id="info-unidade"
+               class="form-control form-control-lg"
                value="{{ material.unidade if material else '' }}"
                placeholder="UN" readonly>
       </div>
@@ -60,10 +62,9 @@
         <input type="number" id="campo-copias"
                class="form-control form-control-lg"
                value="1" min="1" max="99">
-        <div class="form-text">Cada clique abre uma janela por cópia.</div>
       </div>
 
-      <!-- BOTÃO IMPRIMIR -->
+      <!-- BOTÃO -->
       <div class="col-md-4 d-flex align-items-end">
         <button type="button" id="btn-imprimir"
                 class="btn btn-primary btn-lg w-100"
@@ -80,51 +81,68 @@
 
     </div>
 
-    <!-- PREVIEW DA ETIQUETA -->
+    <!-- PREVIEW VISUAL -->
     {% if material and barcode_img %}
     <hr class="mt-4">
-    <p class="text-muted small mb-2"><i class="bi bi-eye"></i> Preview (100mm × 50mm):</p>
+    <p class="text-muted small mb-3">
+      <i class="bi bi-eye"></i> Preview — proporcional a 100mm × 50mm:
+    </p>
 
-    <!-- Preview em escala real visual -->
     <div style="
-      width: 378px; height: 189px;
-      border: 2px solid #333;
+      width: 400px;
+      height: 200px;
+      border: 2px solid #222;
       background: #fff;
-      padding: 8px 11px;
-      font-family: 'Arial Narrow', Arial, sans-serif;
-      display: flex; flex-direction: column;
+      padding: 8px 12px 6px 12px;
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
       justify-content: space-between;
-      box-shadow: 2px 2px 8px rgba(0,0,0,0.15);
+      box-shadow: 3px 3px 10px rgba(0,0,0,0.18);
     ">
       <!-- header -->
       <div style="display:flex;justify-content:space-between;align-items:center;
-                  border-bottom:1.5px solid #000;padding-bottom:4px;">
-        <span style="font-size:9pt;font-weight:900;letter-spacing:0.5px;">NLAG — DEPÓSITO</span>
-        <span style="font-size:7pt;color:#555;">{{ agora }}</span>
+                  border-bottom:2px solid #000;padding-bottom:4px;">
+        <span style="font-size:9.5pt;font-weight:900;letter-spacing:0.4px;">
+          NLAG — DEPÓSITO
+        </span>
+        <span style="font-size:7pt;color:#444;">{{ agora }}</span>
       </div>
-      <!-- corpo -->
-      <div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:3px;padding:4px 0;">
-        <div style="display:flex;align-items:baseline;gap:6px;">
-          <span style="font-size:7pt;color:#555;">Cód:</span>
-          <span style="font-size:16pt;font-weight:900;letter-spacing:1px;">{{ material.codigo }}</span>
-          <span style="font-size:7pt;background:#1e2a3a;color:#fff;
-                       padding:1px 5px;border-radius:3px;margin-left:auto;">{{ material.unidade }}</span>
-        </div>
-        <div style="font-size:8.5pt;font-weight:700;text-transform:uppercase;line-height:1.25;">
-          {{ material.descricao[:60] }}
-        </div>
+
+      <!-- código + unidade -->
+      <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
+        <span style="font-size:7pt;color:#666;">Cód:</span>
+        <span style="font-size:17pt;font-weight:900;letter-spacing:1.5px;line-height:1;">
+          {{ material.codigo }}
+        </span>
+        <span style="margin-left:auto;font-size:7pt;font-weight:700;
+                     background:#1e2a3a;color:#fff;padding:2px 7px;border-radius:3px;">
+          {{ material.unidade }}
+        </span>
       </div>
-      <!-- barcode -->
-      <div style="border-top:1px solid #ddd;padding-top:3px;text-align:center;">
+
+      <!-- descrição -->
+      <div style="font-size:8pt;font-weight:700;text-transform:uppercase;
+                  line-height:1.3;color:#111;margin-top:2px;">
+        {{ material.descricao[:65] }}
+      </div>
+
+      <!-- barcode grande -->
+      <div style="border-top:1px solid #ccc;padding-top:4px;
+                  display:flex;flex-direction:column;align-items:center;">
         <img src="data:image/png;base64,{{ barcode_img }}"
-             style="height:38px;max-width:100%;object-fit:contain;">
+             style="height:52px;width:376px;object-fit:fill;">
+        <span style="font-size:6.5pt;letter-spacing:2px;
+                     font-family:'Courier New',monospace;margin-top:1px;">
+          {{ material.codigo }}
+        </span>
       </div>
     </div>
 
     <div class="mt-2 text-muted small">
       <i class="bi bi-info-circle"></i>
-      Certifique-se de que a impressora <strong>DEC-Zebra003</strong> está selecionada
-      e o tamanho do papel está em <strong>100mm × 50mm</strong>.
+      No diálogo de impressão: selecione <strong>DEC-Zebra003</strong>,
+      tamanho <strong>100 × 50 mm</strong>, margens <strong>nenhuma</strong>.
     </div>
     {% endif %}
 
@@ -155,8 +173,8 @@ function buscarMaterial(codigo) {
         document.getElementById('info-descricao').value = d.descricao;
         document.getElementById('info-unidade').value   = d.unidade;
         document.getElementById('btn-imprimir').disabled = false;
-        // Recarrega para mostrar preview com barcode
-        window.location.href = '/imprimir_etiqueta?codigo=' + encodeURIComponent(d.codigo);
+        window.location.href = '/imprimir_etiqueta?codigo='
+                               + encodeURIComponent(d.codigo);
       } else {
         materialAtual = null;
         document.getElementById('info-descricao').value = '⚠️ Código não encontrado';
@@ -176,31 +194,30 @@ function imprimirEtiqueta() {
   const copias = parseInt(document.getElementById('campo-copias').value) || 1;
   const codigo = materialAtual.codigo;
 
-  mostrarStatus('info', `⏳ Abrindo ${copias} etiqueta(s) para impressão...`);
+  mostrarStatus('info', `⏳ Abrindo ${copias} etiqueta(s)...`);
 
-  // Abre uma aba por cópia — cada aba imprime automaticamente e fecha
   for (let i = 0; i < copias; i++) {
     setTimeout(function () {
       const win = window.open(
         '/print/' + encodeURIComponent(codigo),
         '_blank',
-        'width=400,height=220,toolbar=0,menubar=0,location=0'
+        'width=420,height=230,toolbar=0,menubar=0,location=0,scrollbars=0'
       );
       if (!win) {
         mostrarStatus('danger',
-          '❌ Pop-up bloqueado! Clique no ícone de pop-up na barra de endereço ' +
-          'e permita pop-ups para este site.'
+          '❌ Pop-up bloqueado! Clique no ícone na barra de endereço ' +
+          'e <strong>permita pop-ups</strong> para este site.'
         );
       }
-    }, i * 600); // intervalo de 600ms entre cada cópia
+    }, i * 700);
   }
 
   setTimeout(function () {
     mostrarStatus('success',
-      `✅ ${copias} etiqueta(s) enviada(s) para impressão! ` +
-      'Selecione <strong>DEC-Zebra003</strong> no diálogo e confirme.'
+      `✅ ${copias} etiqueta(s) prontas! ` +
+      'Selecione <strong>DEC-Zebra003</strong> → margens <strong>Nenhuma</strong> → OK.'
     );
-  }, copias * 600 + 200);
+  }, copias * 700 + 300);
 }
 
 function mostrarStatus(tipo, msg) {
@@ -210,7 +227,6 @@ function mostrarStatus(tipo, msg) {
   div.classList.remove('d-none');
 }
 
-// ── Câmera ──
 function abrirCamera() {
   document.getElementById('camera-container').classList.remove('d-none');
   leitorAtivo = new Html5Qrcode('leitor-avulso');
