@@ -5,6 +5,16 @@
   <title>Etiqueta {{ material.codigo }}</title>
   <style>
 
+    /*
+      Página física na Zebra: 50mm largura × 100mm altura (RETRATO)
+      O conteúdo da etiqueta é 100mm × 50mm (PAISAGEM).
+
+      Técnica correta:
+        - @page  → 50mm × 100mm retrato
+        - .etiqueta → 100mm × 50mm, rotacionada 270deg a partir do canto inferior esquerdo
+        - Resultado: conteúdo legível em paisagem dentro da etiqueta retrato
+    */
+
     @page {
       size: 50mm 100mm portrait;
       margin: 0mm;
@@ -26,29 +36,32 @@
     }
 
     /*
-      Página física: 50mm (largura) × 100mm (altura) — RETRATO
-      Conteúdo da etiqueta: 100mm × 50mm — PAISAGEM
-      Técnica: cria div de 96mm × 46mm (com margem de 2mm dos bordos),
-      posiciona no centro da página e gira +90°
+      Posicionamento para rotate(270deg):
+      O elemento de 100mm × 50mm precisa ficar centralizado na página 50mm × 100mm.
+      Com rotate(270deg) e transform-origin: top left:
+        - left = 0mm
+        - top  = 100mm   (equivale a descer o elemento até o fundo da página antes de girar)
+      Margens de 2mm de cada lado → área útil: 96mm × 46mm
     */
     .etiqueta {
       position: absolute;
-      width:  96mm;
-      height: 46mm;
-      top:  50mm;   /* centro vertical da página 100mm */
-      left: -23mm;  /* (50mm - 96mm) / 2 = -23mm */
-      transform: rotate(90deg);
+      width:  100mm;
+      height: 50mm;
+      top:  100mm;
+      left: 0mm;
+      transform: rotate(270deg);
       transform-origin: top left;
-      padding: 2mm 2.5mm 1.5mm 2.5mm;
-      font-family: Arial, Helvetica, sans-serif;
+      background: #fff;
+
+      /* layout interno */
       display: flex;
       flex-direction: column;
       justify-content: space-between;
-      background: #fff;
-      border: 0.3mm solid #ccc;
+      padding: 2mm 2.5mm 2mm 2.5mm;
+      font-family: Arial, Helvetica, sans-serif;
     }
 
-    /* CABEÇALHO */
+    /* ── CABEÇALHO ── */
     .header {
       display: flex;
       justify-content: space-between;
@@ -58,18 +71,18 @@
       flex-shrink: 0;
     }
     .empresa {
-      font-size: 8.5pt;
+      font-size: 8pt;
       font-weight: 900;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.3px;
       color: #000;
     }
     .data {
-      font-size: 6.5pt;
+      font-size: 6pt;
       color: #333;
     }
 
-    /* LINHA DO CÓDIGO */
+    /* ── CÓDIGO + UNIDADE ── */
     .linha-codigo {
       display: flex;
       align-items: center;
@@ -77,11 +90,11 @@
       flex-shrink: 0;
     }
     .label-cod {
-      font-size: 6.5pt;
+      font-size: 6pt;
       color: #555;
     }
     .valor-codigo {
-      font-size: 17pt;
+      font-size: 15pt;
       font-weight: 900;
       letter-spacing: 1px;
       line-height: 1;
@@ -89,17 +102,17 @@
     }
     .badge-un {
       margin-left: auto;
-      font-size: 7pt;
+      font-size: 6.5pt;
       font-weight: 900;
       background: #000;
       color: #fff;
-      padding: 0.8mm 2mm;
+      padding: 0.5mm 1.5mm;
       border-radius: 2px;
     }
 
-    /* DESCRIÇÃO */
+    /* ── DESCRIÇÃO ── */
     .descricao {
-      font-size: 7.5pt;
+      font-size: 7pt;
       font-weight: 700;
       text-transform: uppercase;
       color: #000;
@@ -111,7 +124,7 @@
       flex-shrink: 0;
     }
 
-    /* CÓDIGO DE BARRAS */
+    /* ── CÓDIGO DE BARRAS ── */
     .barcode-wrap {
       display: flex;
       flex-direction: column;
@@ -122,9 +135,10 @@
       flex: 1;
     }
     .barcode-wrap img {
-      width:  91mm;
-      height: 13mm;
-      object-fit: fill;
+      /* imagem gerada: 330×85px — proporção natural preservada */
+      width: 90mm;
+      height: auto;
+      max-height: 14mm;
       display: block;
       image-rendering: pixelated;
     }
@@ -132,7 +146,7 @@
       font-size: 6.5pt;
       font-family: 'Courier New', monospace;
       font-weight: 700;
-      letter-spacing: 3px;
+      letter-spacing: 2.5px;
       color: #000;
       margin-top: 0.5mm;
     }
@@ -172,7 +186,7 @@ window.addEventListener('load', function () {
     setTimeout(function () {
       window.print();
       window.onafterprint = function () { window.close(); };
-    }, 800);
+    }, 900);
   }
   if (img) {
     if (img.complete && img.naturalWidth > 0) { doPrint(); }
