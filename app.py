@@ -5,7 +5,7 @@ import psycopg2.extras
 from datetime import datetime
 import barcode
 from barcode.writer import ImageWriter
-import io, base64, csv, os
+import io, base64, csv, os, socket
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'nlag_deposito_2026')
@@ -13,7 +13,7 @@ app.secret_key = os.environ.get('SECRET_KEY', 'nlag_deposito_2026')
 DATABASE_URL = os.environ.get('DATABASE_URL')
 
 # ─────────────────────────────────────────
-# UTILITÁRIOS
+# UTILITÁRIOS DB
 # ─────────────────────────────────────────
 def get_db():
     conn = psycopg2.connect(DATABASE_URL)
@@ -39,11 +39,14 @@ def query(sql, params=(), fetchone=False, fetchall=False, commit=False):
     return result
 
 def gerar_barcode_base64(codigo):
-    barcode_class = barcode.get_barcode_class('code128')
-    bc     = barcode_class(codigo, writer=ImageWriter())
-    buffer = io.BytesIO()
-    bc.write(buffer)
-    return base64.b64encode(buffer.getvalue()).decode('utf-8')
+    try:
+        barcode_class = barcode.get_barcode_class('code128')
+        bc     = barcode_class(str(codigo), writer=ImageWriter())
+        buffer = io.BytesIO()
+        bc.write(buffer)
+        return base64.b64encode(buffer.getvalue()).decode('utf-8')
+    except Exception:
+        return None
 
 def calcular_saldo(codigo):
     row = query('''
@@ -54,6 +57,55 @@ def calcular_saldo(codigo):
         FROM movimentacoes WHERE codigo = %s
     ''', (codigo,), fetchone=True)
     return float(row['saldo']) if row else 0.0
+
+# ─────────────────────────────────────────
+# IMPRESSÃO ZEBRA VIA REDE (ZPL)
+# Etiqueta 10cm x 5cm = 100mm x 50mm
+# A 203 dpi: 812 dots x 406 dots
+# ─────────────────────────────────────────
+def gerar_zpl(codigo, descricao, unidade, quantidade, data_hora, copias=1):
+    desc  = descricao[:35] if len(descricao) > 35 else descricao
+    desc2 = descricao[35:70] if len(descricao) > 35 else ''
+
+    zpl = f"^XA\n"
+    zpl += f"^CI28\n"
+    zpl += f"^PW812\n"
+    zpl += f"^LL406\n"
+    zpl += f"^PQ{copias},0,1,Y\n"  # Quantidade de cópias
+    zpl += f"^FO20,18^A0N,26,26^FDNLAG - DEPOSITO^FS\n"
+    zpl += f"^FO20,50^GB772,2,2^FS\n"
+    zpl += f"^FO20,62^A0N,22,22^FDCod: {codigo}^FS\n"
+
+    if desc2:
+        zpl += f"^FO20,90^A0N,22,22^FD{desc}^FS\n"
+        zpl += f"^FO20,116^A0N,22,22^FD{desc2}^FS\n"
+        zpl += f"^FO20,142^A0N,22,22^FDUnid: {unidade}   Qtd Entrada: {quantidade}^FS\n"
+        zpl += f"^FO20,168^A0N,20,20^FDData: {data_hora}^FS\n"
+        zpl += f"^FO20,194^GB772,2,2^FS\n"
+        zpl += f"^FO60,206^BCN,95,Y,N,N^FD{codigo}^FS\n"
+    else:
+        zpl += f"^FO20,90^A0N,22,22^FD{desc}^FS\n"
+        zpl += f"^FO20,118^A0N,22,22^FDUnid: {unidade}   Qtd Entrada: {quantidade}^FS\n"
+        zpl += f"^FO20,146^A0N,20,20^FDData: {data_hora}^FS\n"
+        zpl += f"^FO20,174^GB772,2,2^FS\n"
+        zpl += f"^FO60,186^BCN,110,Y,N,N^FD{codigo}^FS\n"
+
+    zpl += "^XZ"
+    return zpl
+
+def enviar_para_zebra(ip, zpl, porta=9100, timeout=5):
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(timeout)
+            s.connect((ip.strip(), porta))
+            s.sendall(zpl.encode('utf-8'))
+        return True, "✅ Etiqueta(s) enviada(s) para a impressora com sucesso!"
+    except socket.timeout:
+        return False, f"❌ Timeout: impressora {ip} não respondeu em {timeout}s. Verifique se está ligada."
+    except ConnectionRefusedError:
+        return False, f"❌ Conexão recusada pelo IP {ip}. Verifique o IP e a porta 9100."
+    except OSError as e:
+        return False, f"❌ Erro de rede: {str(e)}"
 
 # ─────────────────────────────────────────
 # AUTENTICAÇÃO
@@ -145,7 +197,7 @@ def materiais():
     return render_template('materiais.html', lista=lista)
 
 # ─────────────────────────────────────────
-# IMPORTAR CSV
+# IMPORTAR CSV — CORRIGIDO
 # ─────────────────────────────────────────
 @app.route('/importar_csv', methods=['POST'])
 def importar_csv():
@@ -167,21 +219,22 @@ def importar_csv():
         flash("❌ Não foi possível ler o arquivo.", "danger")
         return redirect(url_for('materiais'))
 
-    stream    = io.StringIO(conteudo, newline=None)
-    amostra   = conteudo[:1024]
-    sep       = ';' if amostra.count(';') >= amostra.count(',') else ','
-    reader    = csv.DictReader(stream, delimiter=sep)
+    stream  = io.StringIO(conteudo, newline=None)
+    amostra = conteudo[:1024]
+    sep     = ';' if amostra.count(';') >= amostra.count(',') else ','
+    reader  = csv.DictReader(stream, delimiter=sep)
+
     inseridos = 0
     ignorados = 0
     erros     = []
 
     conn = get_db()
-    cur  = conn.cursor()
 
     for i, row in enumerate(reader, start=2):
+        cur = conn.cursor()
         try:
             row       = {k.strip().lower().replace('\ufeff', ''): v
-                         for k, v in row.items()}
+                         for k, v in row.items() if k}
             codigo    = row.get('codigo',    '').strip().upper()
             descricao = row.get('descricao', '').strip().upper()
             unidade   = row.get('unidade',   '').strip().upper()
@@ -189,80 +242,200 @@ def importar_csv():
             if not codigo or not descricao or not unidade:
                 erros.append(f"Linha {i}: campos vazios")
                 ignorados += 1
+                cur.close()
                 continue
 
             cur.execute(
                 'INSERT INTO materiais (codigo, descricao, unidade) '
-                'VALUES (%s,%s,%s)',
+                'VALUES (%s, %s, %s) ON CONFLICT (codigo) DO NOTHING',
                 (codigo, descricao, unidade)
             )
-            inseridos += 1
-        except Exception:
-            conn.rollback()
-            erros.append(f"Linha {i}: '{codigo}' já existe")
-            ignorados += 1
-            cur = conn.cursor()
+            if cur.rowcount > 0:
+                inseridos += 1
+            else:
+                ignorados += 1
+                erros.append(f"Linha {i}: '{codigo}' já existe")
 
-    conn.commit()
+            conn.commit()
+            cur.close()
+
+        except Exception as e:
+            conn.rollback()
+            erros.append(f"Linha {i}: erro — {str(e)[:60]}")
+            ignorados += 1
+            if not cur.closed:
+                cur.close()
+
     conn.close()
 
     partes = [f"✅ {inseridos} material(is) importado(s)!"]
     if ignorados:
         partes.append(f"⚠️ {ignorados} linha(s) ignorada(s).")
     if erros:
-        partes.append("| " + " | ".join(erros[:5]))
+        partes.append("Detalhes: " + " | ".join(erros[:5]))
 
     flash(" ".join(partes), "success" if inseridos > 0 else "warning")
     return redirect(url_for('materiais'))
 
 # ─────────────────────────────────────────
-# ENTRADA
+# ENTRADA + IMPRESSÃO ZEBRA
 # ─────────────────────────────────────────
 @app.route('/entrada', methods=['GET', 'POST'])
 def entrada():
     material    = None
     barcode_img = None
     quantidade  = None
-    agora_str   = datetime.now().strftime('%d/%m/%Y')
+    agora_str   = datetime.now().strftime('%d/%m/%Y %H:%M')
+    msg_zebra   = None
 
     if request.method == 'POST':
-        codigo    = request.form['codigo'].strip().upper()
-        quantidade = request.form['quantidade']
-        obs       = request.form.get('observacao', '')
-        data_hora = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        acao       = request.form.get('acao', 'registrar')
+        codigo     = request.form.get('codigo', '').strip().upper()
+        quantidade = request.form.get('quantidade', '')
+        obs        = request.form.get('observacao', '')
+        data_hora  = datetime.now().strftime('%d/%m/%Y %H:%M')
 
         material = query(
             'SELECT * FROM materiais WHERE codigo = %s',
             (codigo,), fetchone=True
         )
 
-        if material:
+        # ── REGISTRAR ENTRADA ──
+        if acao == 'registrar':
+            if material:
+                try:
+                    qtd = float(quantidade)
+                    if qtd <= 0:
+                        flash("❌ Quantidade deve ser maior que zero.", "danger")
+                    else:
+                        query(
+                            'INSERT INTO movimentacoes '
+                            '(codigo, tipo, quantidade, data_hora, observacao) '
+                            'VALUES (%s,%s,%s,%s,%s)',
+                            (codigo, 'ENTRADA', qtd,
+                             datetime.now().strftime('%Y-%m-%d %H:%M:%S'), obs),
+                            commit=True
+                        )
+                        barcode_img = gerar_barcode_base64(codigo)
+                        flash(f"✅ Entrada de {qtd} {material['unidade']} "
+                              f"de {material['descricao']} registrada!", "success")
+                except ValueError:
+                    flash("❌ Quantidade inválida.", "danger")
+            else:
+                flash(f"❌ Código {codigo} não encontrado.", "danger")
+
+        # ── IMPRIMIR ETIQUETA ZEBRA ──
+        elif acao == 'imprimir_zebra':
+            ip_zebra   = request.form.get('ip_zebra', '').strip()
+            copias     = request.form.get('copias', '1').strip()
+            quantidade = request.form.get('quantidade', '1').strip()
+
             try:
-                qtd = float(quantidade)
-                query(
-                    'INSERT INTO movimentacoes '
-                    '(codigo, tipo, quantidade, data_hora, observacao) '
-                    'VALUES (%s,%s,%s,%s,%s)',
-                    (codigo, 'ENTRADA', qtd, data_hora, obs), commit=True
-                )
-                barcode_img = gerar_barcode_base64(codigo)
-                flash(f"✅ Entrada de {qtd} {material['unidade']} "
-                      f"registrada para {material['descricao']}!", "success")
+                copias_int = int(copias)
+                if copias_int < 1:
+                    copias_int = 1
+                if copias_int > 999:
+                    copias_int = 999
             except ValueError:
-                flash("❌ Quantidade inválida.", "danger")
-        else:
-            flash(f"❌ Código {codigo} não encontrado.", "danger")
+                copias_int = 1
+
+            if not ip_zebra:
+                msg_zebra = ("danger", "❌ Informe o IP da impressora Zebra.")
+            elif not material:
+                msg_zebra = ("danger", f"❌ Código {codigo} não encontrado.")
+            else:
+                zpl = gerar_zpl(
+                    codigo,
+                    material['descricao'],
+                    material['unidade'],
+                    quantidade,
+                    data_hora,
+                    copias_int
+                )
+                ok, mensagem = enviar_para_zebra(ip_zebra, zpl)
+                msg_zebra = ("success" if ok else "danger", mensagem)
+                barcode_img = gerar_barcode_base64(codigo)
+                # Salva IP na sessão para não precisar digitar sempre
+                session['ip_zebra'] = ip_zebra
 
     materiais_lista = query(
         'SELECT codigo, descricao FROM materiais ORDER BY descricao',
         fetchall=True
     ) or []
 
+    ip_zebra_salvo = session.get('ip_zebra', '')
+
     return render_template('entrada.html',
                            material=material,
                            barcode_img=barcode_img,
                            materiais=materiais_lista,
                            quantidade=quantidade,
+                           agora=agora_str,
+                           msg_zebra=msg_zebra,
+                           ip_zebra_salvo=ip_zebra_salvo)
+
+# ─────────────────────────────────────────
+# IMPRIMIR ETIQUETA AVULSA (sem entrada)
+# ─────────────────────────────────────────
+@app.route('/imprimir_etiqueta', methods=['GET', 'POST'])
+def imprimir_etiqueta():
+    material   = None
+    barcode_img = None
+    msg_zebra  = None
+    agora_str  = datetime.now().strftime('%d/%m/%Y %H:%M')
+
+    if request.method == 'POST':
+        codigo     = request.form.get('codigo', '').strip().upper()
+        ip_zebra   = request.form.get('ip_zebra', '').strip()
+        copias     = request.form.get('copias', '1').strip()
+        quantidade = request.form.get('quantidade', '-')
+
+        material = query(
+            'SELECT * FROM materiais WHERE codigo = %s',
+            (codigo,), fetchone=True
+        )
+
+        try:
+            copias_int = int(copias)
+            if copias_int < 1:
+                copias_int = 1
+            if copias_int > 999:
+                copias_int = 999
+        except ValueError:
+            copias_int = 1
+
+        if not material:
+            flash(f"❌ Código {codigo} não encontrado.", "danger")
+        elif not ip_zebra:
+            flash("❌ Informe o IP da impressora Zebra.", "danger")
+            barcode_img = gerar_barcode_base64(codigo)
+        else:
+            zpl = gerar_zpl(
+                codigo,
+                material['descricao'],
+                material['unidade'],
+                quantidade,
+                agora_str,
+                copias_int
+            )
+            ok, mensagem = enviar_para_zebra(ip_zebra, zpl)
+            msg_zebra = ("success" if ok else "danger", mensagem)
+            barcode_img = gerar_barcode_base64(codigo)
+            session['ip_zebra'] = ip_zebra
+
+    materiais_lista = query(
+        'SELECT codigo, descricao FROM materiais ORDER BY descricao',
+        fetchall=True
+    ) or []
+
+    ip_zebra_salvo = session.get('ip_zebra', '')
+
+    return render_template('imprimir_etiqueta.html',
+                           material=material,
+                           barcode_img=barcode_img,
+                           materiais=materiais_lista,
+                           msg_zebra=msg_zebra,
+                           ip_zebra_salvo=ip_zebra_salvo,
                            agora=agora_str)
 
 # ─────────────────────────────────────────
@@ -271,12 +444,12 @@ def entrada():
 @app.route('/saida', methods=['GET', 'POST'])
 def saida():
     if request.method == 'POST':
-        codigo    = request.form['codigo'].strip().upper()
+        codigo    = request.form.get('codigo', '').strip().upper()
         obs       = request.form.get('observacao', '')
         data_hora = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
         try:
-            quantidade = float(request.form['quantidade'])
+            quantidade = float(request.form.get('quantidade', 0))
         except ValueError:
             quantidade = 0
 
@@ -353,7 +526,7 @@ def exportar_saldo():
     def gerar():
         yield 'Codigo;Descricao;Unidade;Saldo\n'
         for row in saldo:
-            s = float(row['saldo'])
+            s  = float(row['saldo'])
             sf = str(int(s)) if s == int(s) else f"{s:.2f}"
             yield f"{row['codigo']};{row['descricao']};{row['unidade']};{sf}\n"
 
