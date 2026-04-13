@@ -21,22 +21,24 @@
     html, body {
       width: 100mm;
       height: 50mm;
-      overflow: hidden;
+      overflow: visible;
       background: #fff;
+      position: relative;
     }
 
-   .etiqueta {
-  width: 100mm;
-  height: 50mm;
-  padding: 2mm 3mm 2mm 3mm;
-  margin-left: -20mm;        /* empurra 20mm além da borda esquerda */
-  font-family: Arial, Helvetica, sans-serif;
-  display: flex;
-  flex-direction: column;
-  gap: 1.2mm;
-  background: #fff;
-}
-
+    .etiqueta {
+      position: absolute;
+      left: -20mm;
+      top: 0;
+      width: 120mm;
+      height: 50mm;
+      padding: 2mm 3mm 2mm 3mm;
+      font-family: Arial, Helvetica, sans-serif;
+      display: flex;
+      flex-direction: column;
+      gap: 1.2mm;
+      background: #fff;
+    }
 
     /* CABEÇALHO */
     .header {
@@ -103,7 +105,7 @@
       -webkit-box-orient: vertical;
     }
 
-    /* CÓDIGO DE BARRAS — sem texto abaixo */
+    /* CÓDIGO DE BARRAS */
     .barcode-wrap {
       flex: 1;
       display: flex;
@@ -115,7 +117,7 @@
     .barcode-wrap img {
       height: 13mm;
       width: auto;
-      max-width: 72mm;
+      max-width: 112mm;
       display: block;
       image-rendering: pixelated;
     }
