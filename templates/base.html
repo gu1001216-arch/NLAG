@@ -9,6 +9,7 @@
   <style>
     body { background-color: #f0f2f5; }
 
+    /* ── SIDEBAR ── */
     .sidebar {
       min-height: 100vh;
       background: #1e2a3a;
@@ -21,9 +22,9 @@
     .sidebar a {
       display: block;
       color: #adb5bd;
-      padding: 12px 20px;
+      padding: 10px 20px;
       text-decoration: none;
-      font-size: 0.95rem;
+      font-size: 0.92rem;
       border-left: 3px solid transparent;
       transition: all 0.2s;
     }
@@ -33,27 +34,30 @@
       background: rgba(255,255,255,0.07);
       border-left: 3px solid #0d6efd;
     }
-    .sidebar a i { margin-right: 10px; font-size: 1.1rem; }
-
+    .sidebar a i {
+      margin-right: 9px;
+      font-size: 1rem;
+    }
     .sidebar .menu-titulo {
       color: #6c757d;
-      font-size: 0.75rem;
+      font-size: 0.72rem;
       text-transform: uppercase;
       letter-spacing: 1px;
-      padding: 18px 20px 6px;
+      padding: 16px 20px 5px;
     }
-    .sidebar-logo {
-      color: #fff;
-      font-size: 1.4rem;
-      font-weight: 700;
-    }
-    .sidebar-sub {
-      color: #6c757d;
-      font-size: 0.75rem;
+    .sidebar-logo  { color: #fff; font-size: 1.35rem; font-weight: 700; }
+    .sidebar-sub   { color: #6c757d; font-size: 0.75rem; }
+    .sidebar-footer {
+      padding: 20px 20px 10px;
+      color: #3d5068;
+      font-size: 0.70rem;
+      text-align: center;
     }
 
+    /* ── CONTEÚDO PRINCIPAL ── */
     .main-content { padding: 28px 24px; }
 
+    /* ── CARDS ── */
     .card {
       border: none;
       border-radius: 12px;
@@ -63,52 +67,69 @@
       border-radius: 12px 12px 0 0 !important;
       font-weight: 600;
     }
-
     .table thead th {
       background-color: #1e2a3a;
       color: #fff;
       border: none;
     }
 
-    /* BOTÃO HAMBURGUER MOBILE */
+    /* ── NAVBAR MOBILE ── */
     .navbar-mobile {
       display: none;
       background: #1e2a3a;
       padding: 12px 16px;
       align-items: center;
       justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 1030;
     }
-    .navbar-mobile .logo {
-      color: #fff;
-      font-size: 1.1rem;
-      font-weight: 700;
-    }
+    .navbar-mobile .logo   { color: #fff; font-size: 1.1rem; font-weight: 700; }
     .navbar-mobile .btn-menu {
       background: none;
       border: none;
       color: #fff;
-      font-size: 1.5rem;
+      font-size: 1.6rem;
       cursor: pointer;
       padding: 0;
+      line-height: 1;
     }
 
+    /* ── OVERLAY ── */
+    .overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 1040;
+    }
+    .overlay.ativa { display: block; }
+
+    /* ── RESPONSIVO ── */
     @media (max-width: 768px) {
-      .navbar-mobile  { display: flex; }
-      .sidebar        { display: none; position: fixed; top: 0; left: 0;
-                        width: 260px; height: 100vh; z-index: 1050;
-                        min-height: 100vh; padding-top: 16px; }
+      .navbar-mobile { display: flex; }
+      .sidebar {
+        display: none;
+        position: fixed;
+        top: 0; left: 0;
+        width: 270px;
+        height: 100vh;
+        z-index: 1050;
+        min-height: 100vh;
+        padding-top: 12px;
+      }
       .sidebar.aberta { display: block; }
-      .overlay        { display: none; position: fixed; top: 0; left: 0;
-                        width: 100%; height: 100%; background: rgba(0,0,0,0.5);
-                        z-index: 1040; }
-      .overlay.ativa  { display: block; }
-      .col-md-10      { padding: 16px 12px; }
+      .main-content { padding: 16px 12px; }
+      .col-md-10 { padding: 0; }
     }
 
+    /* ── IMPRESSÃO ── */
     @media print {
       .no-print { display: none !important; }
       .sidebar  { display: none !important; }
       .navbar-mobile { display: none !important; }
+      .col-md-2 { display: none !important; }
       .col-md-10 {
         width: 100% !important;
         flex: 0 0 100% !important;
@@ -119,12 +140,12 @@
 </head>
 <body>
 
-<!-- OVERLAY para fechar menu no mobile -->
+<!-- OVERLAY (clique fora fecha menu mobile) -->
 <div class="overlay" id="overlay" onclick="fecharMenu()"></div>
 
-<!-- NAVBAR MOBILE (só aparece em telas pequenas) -->
+<!-- NAVBAR MOBILE -->
 <div class="navbar-mobile no-print">
-  <span class="logo">📦 NLAG — Depósito</span>
+  <span class="logo"><i class="bi bi-boxes"></i> NLAG — Depósito</span>
   <button class="btn-menu" onclick="abrirMenu()">
     <i class="bi bi-list"></i>
   </button>
@@ -133,45 +154,48 @@
 <div class="container-fluid p-0">
   <div class="row g-0">
 
-    <!-- SIDEBAR -->
+    <!-- ══════════════ SIDEBAR ══════════════ -->
     <div class="col-md-2 sidebar no-print" id="sidebar">
 
-      <!-- BOTÃO FECHAR no mobile -->
-      <div class="d-md-none text-end px-3 pb-2">
+      <!-- Fechar (somente mobile) -->
+      <div class="d-md-none text-end px-3 pb-1">
         <button onclick="fecharMenu()"
-                style="background:none; border:none; color:#adb5bd; font-size:1.4rem;">
+                style="background:none;border:none;color:#adb5bd;font-size:1.4rem;">
           <i class="bi bi-x-lg"></i>
         </button>
       </div>
 
-      <!-- LOGO -->
+      <!-- Logo -->
       <div class="text-center py-3 px-2">
         <div class="sidebar-logo"><i class="bi bi-boxes"></i> NLAG</div>
         <div class="sidebar-sub">Controle de Depósito</div>
       </div>
-      <hr style="border-color:#2d3d50; margin:0 0 6px 0;">
 
-      <!-- LOGOUT -->
+      <hr style="border-color:#2d3d50;margin:0 0 4px 0;">
+
+      <!-- Botão Sair -->
       <div class="text-center py-2">
         <a href="/logout"
-           style="display:inline-flex; align-items:center; gap:6px;
-                  color:#adb5bd; font-size:0.82rem; text-decoration:none;
-                  border:1px solid #2d3d50; border-radius:20px;
-                  padding:4px 14px; transition:all 0.2s;"
-           onmouseover="this.style.color='#fff'; this.style.borderColor='#6c757d';"
-           onmouseout="this.style.color='#adb5bd'; this.style.borderColor='#2d3d50';">
+           style="display:inline-flex;align-items:center;gap:6px;
+                  color:#adb5bd;font-size:0.82rem;text-decoration:none;
+                  border:1px solid #2d3d50;border-radius:20px;
+                  padding:4px 16px;transition:all 0.2s;"
+           onmouseover="this.style.color='#fff';this.style.borderColor='#6c757d';"
+           onmouseout="this.style.color='#adb5bd';this.style.borderColor='#2d3d50';">
           <i class="bi bi-box-arrow-right"></i> Sair
         </a>
       </div>
-      <hr style="border-color:#2d3d50; margin:6px 0;">
 
-      <!-- MENU PRINCIPAL -->
+      <hr style="border-color:#2d3d50;margin:4px 0;">
+
+      <!-- ── PRINCIPAL ── -->
       <div class="menu-titulo">Principal</div>
       <a href="/"
          class="{{ 'active' if request.endpoint == 'index' else '' }}">
         <i class="bi bi-speedometer2"></i> Dashboard
       </a>
 
+      <!-- ── MOVIMENTAÇÃO ── -->
       <div class="menu-titulo">Movimentação</div>
       <a href="/entrada"
          class="{{ 'active' if request.endpoint == 'entrada' else '' }}">
@@ -185,17 +209,29 @@
          class="{{ 'active' if request.endpoint == 'historico' else '' }}">
         <i class="bi bi-clock-history"></i> Histórico
       </a>
-      <a href="/coletor"
-         class="{{ 'active' if request.endpoint == 'coletor' else '' }}">
-        <i class="bi bi-phone"></i> Modo Celular
+
+      <!-- ── ETIQUETAS ── -->
+      <div class="menu-titulo">Etiquetas</div>
+      <a href="/imprimir_etiqueta"
+         class="{{ 'active' if request.endpoint == 'imprimir_etiqueta' else '' }}">
+        <i class="bi bi-tag"></i> Imprimir Etiqueta
       </a>
 
+      <!-- ── CADASTROS ── -->
       <div class="menu-titulo">Cadastros</div>
       <a href="/materiais"
          class="{{ 'active' if request.endpoint == 'materiais' else '' }}">
         <i class="bi bi-list-ul"></i> Materiais
       </a>
 
+      <!-- ── ACESSO MOBILE ── -->
+      <div class="menu-titulo">Acesso Mobile</div>
+      <a href="/coletor"
+         class="{{ 'active' if request.endpoint == 'coletor' else '' }}">
+        <i class="bi bi-phone"></i> Modo Celular
+      </a>
+
+      <!-- ── RELATÓRIOS ── -->
       <div class="menu-titulo">Relatórios</div>
       <a href="/exportar_saldo">
         <i class="bi bi-file-earmark-spreadsheet"></i> Exportar Saldo CSV
@@ -204,19 +240,14 @@
         <i class="bi bi-file-earmark-arrow-down"></i> Exportar Histórico CSV
       </a>
 
-      <!-- VERSÃO -->
-      <div style="padding: 24px 20px 12px; color:#3d5068;
-                  font-size:0.72rem; text-align:center;">
-        v1.0 — NLAG Depósito
-      </div>
-
+      <div class="sidebar-footer">v1.0 — NLAG Depósito</div>
     </div>
-    <!-- FIM SIDEBAR -->
+    <!-- ══════════════ FIM SIDEBAR ══════════════ -->
 
-    <!-- CONTEÚDO PRINCIPAL -->
+    <!-- ══════════════ CONTEÚDO ══════════════ -->
     <div class="col-md-10 main-content">
 
-      <!-- FLASH MESSAGES -->
+      <!-- Flash messages globais -->
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
           {% for categoria, mensagem in messages %}
@@ -229,16 +260,14 @@
       {% endwith %}
 
       {% block content %}{% endblock %}
-
     </div>
-    <!-- FIM CONTEÚDO -->
+    <!-- ══════════════ FIM CONTEÚDO ══════════════ -->
 
   </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-  // Abre e fecha menu lateral no mobile
   function abrirMenu() {
     document.getElementById('sidebar').classList.add('aberta');
     document.getElementById('overlay').classList.add('ativa');
@@ -249,13 +278,12 @@
     document.getElementById('overlay').classList.remove('ativa');
     document.body.style.overflow = '';
   }
-  // Fecha menu ao clicar em qualquer link dentro dele (mobile)
+  // Fecha menu ao clicar em qualquer link (mobile)
   document.querySelectorAll('#sidebar a').forEach(link => {
     link.addEventListener('click', () => {
       if (window.innerWidth <= 768) fecharMenu();
     });
   });
 </script>
-
 </body>
 </html>
