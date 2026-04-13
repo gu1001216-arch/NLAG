@@ -1,109 +1,313 @@
 {% extends 'base.html' %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-  <h4 class="mb-0"><i class="bi bi-tag text-primary"></i> Imprimir Etiqueta Avulsa</h4>
+  <h4 class="mb-0"><i class="bi bi-tag text-primary"></i> Imprimir Etiqueta</h4>
   <span class="text-muted small">{{ agora }}</span>
 </div>
+
+<!-- AVISO -->
+<div class="alert alert-info alert-dismissible fade show" role="alert">
+  <i class="bi bi-pc-display-horizontal"></i>
+  <strong>Requisito:</strong> O arquivo <strong>NLAG_Impressora.exe</strong>
+  precisa estar rodando no PC conectado à Zebra (<code>DEC-Zebra003 / 10.12.11.119</code>).
+  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+
 <div class="card mb-4">
-  <div class="card-header bg-primary text-white">
-    <i class="bi bi-printer"></i> Dados para Impressão
+  <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-printer"></i> Dados para Impressão</span>
+    <span id="badge-servidor" class="badge bg-secondary">
+      <i class="bi bi-circle"></i> Aguardando...
+    </span>
   </div>
   <div class="card-body">
-    {% if msg_zebra %}
-    <div class="alert alert-{{ msg_zebra[0] }} alert-dismissible fade show">
-      {{ msg_zebra[1] }}
-      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-    {% endif %}
-    <form method="POST">
-      <div class="row g-3 align-items-end">
-        <div class="col-md-4">
-          <label class="form-label fw-bold">Código do Material</label>
-          <div class="input-group">
-            <input type="text" name="codigo" id="campo-codigo"
-                   class="form-control form-control-lg"
-                   value="{{ material.codigo if material else request.args.get('codigo', '') }}"
-                   placeholder="Digite ou bipie o código"
-                   autocomplete="off" autofocus required>
-            <button type="button" class="btn btn-outline-secondary"
-                    onclick="abrirCamera()" title="Usar câmera">
-              <i class="bi bi-camera"></i>
-            </button>
-          </div>
-          <div id="camera-container" class="d-none mt-2">
-            <div id="leitor-avulso" style="width:100%;"></div>
-            <button type="button" class="btn btn-sm btn-secondary mt-1"
-                    onclick="fecharCamera()">
-              <i class="bi bi-x-circle"></i> Fechar câmera
-            </button>
-          </div>
+
+    <!-- RESULTADO DA IMPRESSÃO -->
+    <div id="div-status" class="d-none mb-3"></div>
+
+    <div class="row g-3">
+
+      <!-- CÓDIGO -->
+      <div class="col-md-5">
+        <label class="form-label fw-bold">Código do Material</label>
+        <div class="input-group">
+          <input type="text" id="campo-codigo"
+                 class="form-control form-control-lg"
+                 value="{{ material.codigo if material else request.args.get('codigo','') }}"
+                 placeholder="Digite ou bipie o código"
+                 autocomplete="off" autofocus>
+          <button type="button" class="btn btn-outline-secondary"
+                  onclick="abrirCamera()" title="Câmera">
+            <i class="bi bi-camera"></i>
+          </button>
         </div>
-        <div class="col-md-4">
-          <label class="form-label fw-bold">
-            <i class="bi bi-wifi"></i> IP da Impressora Zebra
-          </label>
-          <input type="text" name="ip_zebra" class="form-control form-control-lg"
-                 value="{{ ip_zebra_salvo }}" placeholder="Ex: 192.168.1.200" required>
-          <div class="form-text"><i class="bi bi-info-circle"></i> IP salvo automaticamente.</div>
-        </div>
-        <div class="col-md-2">
-          <label class="form-label fw-bold">
-            <i class="bi bi-layers"></i> Qtd Etiquetas
-          </label>
-          <input type="number" name="copias" class="form-control form-control-lg"
-                 value="1" min="1" max="999" required>
-        </div>
-        <div class="col-md-2">
-          <button type="submit" class="btn btn-primary btn-lg w-100">
-            <i class="bi bi-printer-fill"></i> Imprimir
+        <div id="camera-container" class="d-none mt-2">
+          <div id="leitor-avulso" style="width:100%;"></div>
+          <button type="button" class="btn btn-sm btn-secondary mt-1"
+                  onclick="fecharCamera()">
+            <i class="bi bi-x-circle"></i> Fechar
           </button>
         </div>
       </div>
-    </form>
-    {% if material %}
-    <hr>
-    <div class="row align-items-center mt-2">
+
+      <!-- DESCRIÇÃO (readonly) -->
       <div class="col-md-5">
-        <div class="alert alert-info mb-0">
-          <strong>{{ material.codigo }}</strong> — {{ material.descricao }}<br>
-          <span class="badge bg-secondary">{{ material.unidade }}</span>
+        <label class="form-label fw-bold">Descrição</label>
+        <input type="text" id="info-descricao" class="form-control form-control-lg"
+               value="{{ material.descricao if material else '' }}"
+               placeholder="Carregada automaticamente" readonly>
+      </div>
+
+      <!-- UNIDADE (readonly) -->
+      <div class="col-md-2">
+        <label class="form-label fw-bold">Unidade</label>
+        <input type="text" id="info-unidade" class="form-control form-control-lg"
+               value="{{ material.unidade if material else '' }}"
+               placeholder="UN" readonly>
+      </div>
+
+      <!-- SERVIDOR LOCAL -->
+      <div class="col-md-7">
+        <label class="form-label fw-bold">
+          <i class="bi bi-hdd-network"></i> Endereço do Servidor Local (NLAG_Impressora.exe)
+        </label>
+        <div class="input-group">
+          <input type="text" id="campo-servidor"
+                 class="form-control form-control-lg"
+                 placeholder="http://10.12.11.XX:5001">
+          <button type="button" class="btn btn-outline-secondary"
+                  onclick="testarServidor()" title="Testar conexão">
+            <i class="bi bi-wifi"></i> Testar
+          </button>
+        </div>
+        <div class="form-text">
+          <i class="bi bi-info-circle"></i>
+          Digite o IP do PC onde o exe roda. Ex: <code>http://10.12.11.50:5001</code>.
+          Salvo automaticamente no navegador.
         </div>
       </div>
-      {% if barcode_img %}
-      <div class="col-md-7 text-center">
-        <p class="text-muted small mb-1"><i class="bi bi-eye"></i> Preview etiqueta:</p>
-        <div style="width:360px;height:168px;border:2px dashed #ccc;
+
+      <!-- QTD ETIQUETAS -->
+      <div class="col-md-2">
+        <label class="form-label fw-bold">
+          <i class="bi bi-layers"></i> Qtd Etiquetas
+        </label>
+        <input type="number" id="campo-copias"
+               class="form-control form-control-lg"
+               value="1" min="1" max="999">
+      </div>
+
+      <!-- BOTÃO IMPRIMIR -->
+      <div class="col-md-3 d-flex align-items-end">
+        <button type="button" id="btn-imprimir"
+                class="btn btn-primary btn-lg w-100"
+                onclick="imprimirEtiqueta()">
+          <i class="bi bi-printer-fill"></i> Imprimir na Zebra
+        </button>
+      </div>
+
+    </div>
+
+    <!-- PREVIEW -->
+    {% if material and barcode_img %}
+    <hr class="mt-4">
+    <div class="row align-items-center">
+      <div class="col-md-4">
+        <div class="alert alert-secondary mb-0">
+          <div><strong>{{ material.codigo }}</strong></div>
+          <div style="font-size:0.88rem;">{{ material.descricao }}</div>
+          <span class="badge bg-dark mt-1">{{ material.unidade }}</span>
+        </div>
+      </div>
+      <div class="col-md-8 text-center">
+        <p class="text-muted small mb-2"><i class="bi bi-eye"></i> Preview da etiqueta:</p>
+        <div style="width:380px;height:175px;border:2px dashed #aaa;
                     display:inline-block;padding:10px;background:#fff;
                     text-align:left;font-family:monospace;font-size:11px;">
-          <div style="font-weight:bold;border-bottom:1px solid #000;padding-bottom:2px;margin-bottom:4px;">
+          <div style="font-weight:bold;border-bottom:1px solid #000;
+                      padding-bottom:3px;margin-bottom:5px;font-size:12px;">
             NLAG - DEPOSITO
           </div>
           <div>Cod: <strong>{{ material.codigo }}</strong></div>
-          <div>{{ material.descricao[:45] }}</div>
-          <div style="color:#555;font-size:10px;">Data: {{ agora }}</div>
+          <div>{{ material.descricao[:50] }}</div>
+          <div style="color:#666;font-size:10px;">Data: {{ agora }}</div>
           <img src="data:image/png;base64,{{ barcode_img }}"
-               style="max-width:100%;height:52px;object-fit:contain;margin-top:5px;">
+               style="max-width:100%;height:60px;object-fit:contain;margin-top:6px;">
         </div>
       </div>
-      {% endif %}
     </div>
     {% endif %}
+
   </div>
 </div>
 
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script>
-let leitorAtivo = null;
+// ── Chave do localStorage ──
+const LS_KEY = 'nlag_servidor_impressora';
+let leitorAtivo  = null;
+let materialAtual = {{ ('{"codigo":"' + material.codigo|string + '","descricao":"' + material.descricao|string + '","unidade":"' + material.unidade|string + '"}') | safe if material else 'null' }};
 
-document.getElementById('campo-codigo').addEventListener('change', function() {
-  if (this.value.trim()) this.form.submit();
+// ── Ao carregar a página ──
+window.addEventListener('load', function () {
+  // Carrega servidor salvo
+  const srv = localStorage.getItem(LS_KEY) || '';
+  document.getElementById('campo-servidor').value = srv;
+  if (srv) testarServidor(true);
+
+  // Carrega material se veio por URL
+  const c = document.getElementById('campo-codigo').value.trim();
+  if (c && !materialAtual) buscarMaterial(c);
+  if (materialAtual) {
+    document.getElementById('info-descricao').value = materialAtual.descricao || '';
+    document.getElementById('info-unidade').value   = materialAtual.unidade   || '';
+  }
 });
 
-window.addEventListener('load', function() {
-  const c = document.getElementById('campo-codigo').value;
-  if (c) document.getElementById('campo-codigo').form.submit();
+// ── Busca material via API ──
+function buscarMaterial(codigo) {
+  if (!codigo) return;
+  fetch('/api/material/' + encodeURIComponent(codigo.trim().toUpperCase()))
+    .then(r => r.json())
+    .then(d => {
+      if (!d.erro) {
+        materialAtual = d;
+        document.getElementById('info-descricao').value = d.descricao;
+        document.getElementById('info-unidade').value   = d.unidade;
+        // Recarrega página para mostrar preview
+        window.location.href = '/imprimir_etiqueta?codigo=' + encodeURIComponent(d.codigo);
+      } else {
+        materialAtual = null;
+        document.getElementById('info-descricao').value = '⚠️ Código não encontrado';
+        document.getElementById('info-unidade').value   = '';
+      }
+    }).catch(() => {});
+}
+
+document.getElementById('campo-codigo').addEventListener('change', function () {
+  buscarMaterial(this.value.trim());
 });
 
+// ── Salva servidor ao sair do campo ──
+document.getElementById('campo-servidor').addEventListener('blur', function () {
+  const v = this.value.trim();
+  if (v) { localStorage.setItem(LS_KEY, v); testarServidor(true); }
+});
+
+// ── Testa se o exe está rodando ──
+function testarServidor(silencioso = false) {
+  const srv = document.getElementById('campo-servidor').value.trim();
+  if (!srv) { if (!silencioso) alert('Informe o endereço do servidor!'); return; }
+
+  setBadge('warning', '⏳ Verificando...');
+
+  fetch('/api/testar_servidor', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ servidor: srv })
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.ok) {
+      setBadge('success', '🟢 Impressora Online');
+      if (!silencioso) mostrarStatus('success', '✅ ' + d.msg);
+    } else {
+      setBadge('danger', '🔴 Offline');
+      if (!silencioso) mostrarStatus('danger', '❌ ' + d.msg);
+    }
+  }).catch(() => {
+    setBadge('danger', '🔴 Erro');
+    if (!silencioso) mostrarStatus('danger', '❌ Erro ao testar conexão.');
+  });
+}
+
+// ── Gera ZPL no front (igual ao Python) ──
+function gerarZPL(codigo, descricao, dataHora, copias) {
+  const desc1 = descricao.substring(0, 35);
+  const desc2 = descricao.substring(35, 70).trim();
+  let z = `^XA\n^PQ${copias},0,1,Y\n`;
+  z += `^FO20,15^A0N,28,28^FDNLAG - DEPOSITO^FS\n`;
+  z += `^FO20,48^GB700,2,2^FS\n`;
+  z += `^FO20,60^A0N,24,24^FDCod: ${codigo}^FS\n`;
+  if (desc2) {
+    z += `^FO20,90^A0N,22,22^FD${desc1}^FS\n`;
+    z += `^FO20,116^A0N,22,22^FD${desc2}^FS\n`;
+    z += `^FO20,148^A0N,18,18^FDData: ${dataHora}^FS\n`;
+    z += `^FO20,172^GB700,2,2^FS\n`;
+    z += `^FO60,185^BCN,95,Y,N,N^FD${codigo}^FS\n`;
+  } else {
+    z += `^FO20,90^A0N,22,22^FD${desc1}^FS\n`;
+    z += `^FO20,120^A0N,18,18^FDData: ${dataHora}^FS\n`;
+    z += `^FO20,148^GB700,2,2^FS\n`;
+    z += `^FO60,162^BCN,110,Y,N,N^FD${codigo}^FS\n`;
+  }
+  z += `^XZ`;
+  return z;
+}
+
+// ── Envia para impressora ──
+function imprimirEtiqueta() {
+  const codigo   = document.getElementById('campo-codigo').value.trim().toUpperCase();
+  const servidor = document.getElementById('campo-servidor').value.trim();
+  const copias   = parseInt(document.getElementById('campo-copias').value) || 1;
+
+  if (!codigo)        { alert('Informe o código do material!'); return; }
+  if (!materialAtual) { alert('Material não encontrado! Verifique o código.'); return; }
+  if (!servidor)      { alert('Informe o endereço do servidor local!\nEx: http://10.12.11.50:5001'); return; }
+
+  const agora   = new Date();
+  const dataStr = String(agora.getDate()).padStart(2,'0') + '/' +
+                  String(agora.getMonth()+1).padStart(2,'0') + '/' +
+                  agora.getFullYear() + ' ' +
+                  String(agora.getHours()).padStart(2,'0') + ':' +
+                  String(agora.getMinutes()).padStart(2,'0');
+
+  const zpl = gerarZPL(codigo, materialAtual.descricao, dataStr, copias);
+  const btn = document.getElementById('btn-imprimir');
+
+  btn.disabled  = true;
+  btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Enviando...';
+  mostrarStatus('info', '⏳ Enviando ' + copias + ' etiqueta(s) para a Zebra...');
+
+  fetch('/api/imprimir_zpl', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ zpl: zpl, servidor: servidor })
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.ok) {
+      mostrarStatus('success', '🖨️ ' + d.msg);
+      setBadge('success', '🟢 Impressora Online');
+      localStorage.setItem(LS_KEY, servidor);
+    } else {
+      mostrarStatus('danger', d.msg);
+      setBadge('danger', '🔴 Erro');
+    }
+  })
+  .catch(e => mostrarStatus('danger', '❌ Erro de comunicação: ' + e))
+  .finally(() => {
+    btn.disabled  = false;
+    btn.innerHTML = '<i class="bi bi-printer-fill"></i> Imprimir na Zebra';
+  });
+}
+
+// ── Helpers ──
+function mostrarStatus(tipo, msg) {
+  const div = document.getElementById('div-status');
+  div.className = `alert alert-${tipo}`;
+  div.innerHTML = msg;
+  div.classList.remove('d-none');
+  div.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function setBadge(tipo, txt) {
+  const b = document.getElementById('badge-servidor');
+  b.className = `badge bg-${tipo}`;
+  b.innerHTML = txt;
+}
+
+// ── Câmera ──
 function abrirCamera() {
   document.getElementById('camera-container').classList.remove('d-none');
   leitorAtivo = new Html5Qrcode('leitor-avulso');
@@ -113,7 +317,7 @@ function abrirCamera() {
     (codigo) => {
       document.getElementById('campo-codigo').value = codigo.toUpperCase();
       fecharCamera();
-      document.getElementById('campo-codigo').form.submit();
+      buscarMaterial(codigo);
     }, () => {}
   ).catch(e => alert('Erro câmera: ' + e));
 }
