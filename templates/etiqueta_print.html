@@ -5,8 +5,8 @@
   <title>Etiqueta {{ material.codigo }}</title>
   <style>
     @page {
-      size: 100mm 50mm;
-      margin: 0mm;
+      size: 100mm 50mm landscape;
+      margin: 0;
     }
 
     * {
@@ -22,16 +22,22 @@
       height: 50mm;
       overflow: hidden;
       background: #fff;
+      /* Força orientação correta */
+      transform-origin: top left;
     }
 
     .etiqueta {
       width: 100mm;
       height: 50mm;
-      padding: 2mm 3mm 1.5mm 3mm;
-      font-family: Arial, sans-serif;
+      padding: 2mm 3mm 2mm 3mm;
+      /* Fonte sem serifa e sem antialiasing para impressão térmica */
+      font-family: Arial, Helvetica, sans-serif;
+      -webkit-font-smoothing: none;
+      font-smooth: never;
       display: flex;
       flex-direction: column;
-      justify-content: space-between;
+      gap: 1mm;
+      background: #fff;
     }
 
     /* ── CABEÇALHO ── */
@@ -39,90 +45,96 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      border-bottom: 0.5mm solid #000;
-      padding-bottom: 1mm;
+      border-bottom: 0.4mm solid #000;
+      padding-bottom: 0.8mm;
+      flex-shrink: 0;
     }
     .header .empresa {
-      font-size: 8pt;
+      font-size: 7.5pt;
       font-weight: 900;
-      letter-spacing: 0.4px;
+      letter-spacing: 0.3px;
       text-transform: uppercase;
+      color: #000;
     }
     .header .data {
-      font-size: 6.5pt;
-      color: #333;
+      font-size: 6pt;
+      color: #000;
       white-space: nowrap;
     }
 
-    /* ── CÓDIGO ── */
+    /* ── LINHA CÓDIGO ── */
     .linha-codigo {
       display: flex;
       align-items: center;
-      gap: 2mm;
-      margin-top: 1mm;
+      gap: 1.5mm;
+      flex-shrink: 0;
     }
     .label-cod {
-      font-size: 6pt;
-      color: #555;
-      text-transform: uppercase;
+      font-size: 5.5pt;
+      color: #444;
       white-space: nowrap;
     }
     .valor-codigo {
-      font-size: 14pt;
+      font-size: 13pt;
       font-weight: 900;
-      letter-spacing: 1.5px;
+      letter-spacing: 1px;
       line-height: 1;
+      color: #000;
     }
     .badge-unidade {
       margin-left: auto;
-      font-size: 6.5pt;
+      font-size: 6pt;
       font-weight: 700;
-      background: #1e2a3a;
+      background: #000;
       color: #fff;
-      padding: 1mm 2mm;
-      border-radius: 2px;
+      padding: 0.8mm 1.5mm;
+      border-radius: 1.5px;
       white-space: nowrap;
     }
 
     /* ── DESCRIÇÃO ── */
     .descricao {
-      font-size: 7.5pt;
+      font-size: 7pt;
       font-weight: 700;
       text-transform: uppercase;
-      line-height: 1.25;
-      color: #111;
-      margin-top: 0.8mm;
-      /* máximo 2 linhas */
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
+      line-height: 1.2;
+      color: #000;
+      flex-shrink: 0;
       overflow: hidden;
+      max-height: 8mm;
     }
 
-    /* ── CÓDIGO DE BARRAS — ocupa o máximo de espaço ── */
+    /* ── ÁREA DO CÓDIGO DE BARRAS ── */
     .barcode-area {
-      border-top: 0.3mm solid #ccc;
-      padding-top: 1mm;
+      flex: 1;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: flex-end;
-      flex: 1;
-      margin-top: 1mm;
+      border-top: 0.3mm solid #999;
+      padding-top: 0.8mm;
+      overflow: hidden;
     }
+
     .barcode-area img {
-      /* Altura grande para fácil leitura */
-      height: 14mm;
-      width: 94mm;
-      object-fit: fill;
+      /* Mantém proporção original — NÃO estica */
+      width: auto;
+      height: 12mm;
+      max-width: 94mm;
+      object-fit: contain;
+      object-position: center;
       display: block;
+      /* Remove filtros que causam falhas */
+      image-rendering: pixelated;
     }
+
     .barcode-num {
-      font-size: 6pt;
-      letter-spacing: 2px;
-      color: #222;
-      margin-top: 0.3mm;
-      font-family: 'Courier New', monospace;
+      font-size: 5.5pt;
+      letter-spacing: 1.5px;
+      color: #000;
+      margin-top: 0.5mm;
+      font-family: 'Courier New', Courier, monospace;
+      font-weight: 700;
     }
   </style>
 </head>
@@ -145,10 +157,11 @@
   <!-- DESCRIÇÃO -->
   <div class="descricao">{{ material.descricao }}</div>
 
-  <!-- CÓDIGO DE BARRAS GRANDE -->
+  <!-- CÓDIGO DE BARRAS -->
   {% if barcode_img %}
   <div class="barcode-area">
-    <img src="data:image/png;base64,{{ barcode_img }}" alt="{{ material.codigo }}">
+    <img src="data:image/png;base64,{{ barcode_img }}"
+         alt="{{ material.codigo }}">
     <div class="barcode-num">{{ material.codigo }}</div>
   </div>
   {% endif %}
@@ -156,26 +169,30 @@
 </div>
 
 <script>
-  window.addEventListener('load', function () {
-    // Aguarda imagem do barcode carregar completamente
-    const img = document.querySelector('.barcode-area img');
-    function doPrint() {
-      setTimeout(function () {
-        window.print();
-        window.onafterprint = function () { window.close(); };
-      }, 300);
-    }
-    if (img) {
-      if (img.complete) {
-        doPrint();
-      } else {
-        img.addEventListener('load', doPrint);
-        img.addEventListener('error', doPrint);
-      }
-    } else {
+window.addEventListener('load', function () {
+  const img = document.querySelector('.barcode-area img');
+
+  function doPrint() {
+    // Delay maior para garantir renderização completa
+    setTimeout(function () {
+      window.print();
+      window.onafterprint = function () {
+        window.close();
+      };
+    }, 600);
+  }
+
+  if (img) {
+    if (img.complete && img.naturalWidth > 0) {
       doPrint();
+    } else {
+      img.addEventListener('load',  doPrint);
+      img.addEventListener('error', doPrint);
     }
-  });
+  } else {
+    doPrint();
+  }
+});
 </script>
 </body>
 </html>
