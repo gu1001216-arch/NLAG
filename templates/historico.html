@@ -1,91 +1,130 @@
 {% extends 'base.html' %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-  <h4 class="mb-0"><i class="bi bi-clock-history text-info"></i> Histórico de Movimentações</h4>
+  <h4 class="mb-0"><i class="bi bi-box-arrow-up text-danger"></i> Registrar Saída</h4>
 </div>
-<div class="card mb-3">
+<div class="card">
+  <div class="card-header bg-danger text-white">
+    <i class="bi bi-dash-circle"></i> Dados da Saída
+  </div>
   <div class="card-body">
-    <form method="GET" class="row g-2 align-items-end">
-      <div class="col-md-4">
-        <label class="form-label fw-bold">Filtrar por Código</label>
-        <input type="text" name="codigo" class="form-control"
-               value="{{ filtro }}" placeholder="Ex: MP-001">
-      </div>
-      <div class="col-md-3">
-        <label class="form-label fw-bold">Tipo</label>
-        <select name="tipo" class="form-select">
-          <option value="">Todos</option>
-          <option value="ENTRADA" {{ 'selected' if tipo_f == 'ENTRADA' }}>Entrada</option>
-          <option value="SAIDA"   {{ 'selected' if tipo_f == 'SAIDA'   }}>Saída</option>
-        </select>
-      </div>
-      <div class="col-md-2">
-        <button type="submit" class="btn btn-primary w-100">
-          <i class="bi bi-search"></i> Filtrar
-        </button>
-      </div>
-      <div class="col-md-2">
-        <a href="/historico" class="btn btn-outline-secondary w-100">
-          <i class="bi bi-x-circle"></i> Limpar
-        </a>
-      </div>
-      <div class="col-md-1">
-        <a href="/exportar_historico" class="btn btn-outline-success w-100" title="Exportar CSV">
-          <i class="bi bi-file-earmark-spreadsheet"></i>
-        </a>
+    <form method="POST" id="form-saida">
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label fw-bold">Código do Material</label>
+          <div class="input-group">
+            <input type="text" name="codigo" id="campo-codigo"
+                   class="form-control form-control-lg"
+                   placeholder="Digite ou bipie o código"
+                   value="{{ request.args.get('codigo', '') }}"
+                   autocomplete="off" autofocus required>
+            <button type="button" class="btn btn-outline-secondary"
+                    onclick="abrirCamera()" title="Usar câmera">
+              <i class="bi bi-camera"></i>
+            </button>
+          </div>
+          <div id="camera-container" class="d-none mt-2">
+            <div id="leitor-saida" style="width:100%;"></div>
+            <button type="button" class="btn btn-sm btn-secondary mt-1"
+                    onclick="fecharCamera()">
+              <i class="bi bi-x-circle"></i> Fechar câmera
+            </button>
+          </div>
+        </div>
+        <div class="col-md-5">
+          <label class="form-label fw-bold">Descrição</label>
+          <input type="text" id="info-descricao" class="form-control form-control-lg"
+                 placeholder="Carregada automaticamente" readonly>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label fw-bold">Saldo Atual</label>
+          <input type="text" id="info-saldo" class="form-control form-control-lg fw-bold"
+                 placeholder="—" readonly>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label fw-bold">Quantidade</label>
+          <input type="number" name="quantidade" id="campo-quantidade"
+                 class="form-control form-control-lg"
+                 min="0.001" step="any" placeholder="0" required>
+        </div>
+        <div class="col-md-8">
+          <label class="form-label fw-bold">Observação (opcional)</label>
+          <input type="text" name="observacao" class="form-control form-control-lg"
+                 placeholder="Destino, OS, responsável...">
+        </div>
+        <div class="col-12">
+          <button type="submit" class="btn btn-danger btn-lg px-5"
+                  onclick="return validarSaida()">
+            <i class="bi bi-check-circle"></i> Confirmar Saída
+          </button>
+        </div>
       </div>
     </form>
   </div>
 </div>
-<div class="card">
-  <div class="card-header">
-    <i class="bi bi-table"></i> Movimentações
-    <span class="badge bg-secondary ms-2">{{ movs | length }} registros</span>
-  </div>
-  <div class="card-body p-0">
-    <div class="table-responsive">
-      <table class="table table-hover mb-0">
-        <thead>
-          <tr>
-            <th>Data/Hora</th>
-            <th>Tipo</th>
-            <th>Código</th>
-            <th>Descrição</th>
-            <th>Unidade</th>
-            <th class="text-end">Quantidade</th>
-            <th>Observação</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for m in movs %}
-          <tr>
-            <td style="font-size:0.85rem;white-space:nowrap;">{{ m.data_hora }}</td>
-            <td>
-              {% if m.tipo == 'ENTRADA' %}
-                <span class="badge bg-success">ENTRADA</span>
-              {% else %}
-                <span class="badge bg-danger">SAÍDA</span>
-              {% endif %}
-            </td>
-            <td><code>{{ m.codigo }}</code></td>
-            <td style="font-size:0.88rem;">{{ m.descricao }}</td>
-            <td><span class="badge bg-secondary">{{ m.unidade }}</span></td>
-            <td class="text-end fw-bold">
-              {% set q = m.quantidade | float %}
-              {% if q == q | int %}{{ q | int }}{% else %}{{ "%.2f" | format(q) }}{% endif %}
-            </td>
-            <td style="font-size:0.85rem;color:#6c757d;">{{ m.observacao or '—' }}</td>
-          </tr>
-          {% else %}
-          <tr>
-            <td colspan="7" class="text-center text-muted py-4">
-              Nenhuma movimentação encontrada.
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-</div>
+
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script>
+let leitorAtivo = null;
+let saldoAtual  = 0;
+
+function buscarMaterial(codigo) {
+  if (!codigo) return;
+  fetch('/api/material/' + encodeURIComponent(codigo.trim().toUpperCase()))
+    .then(r => r.json())
+    .then(d => {
+      if (!d.erro) {
+        document.getElementById('info-descricao').value = d.descricao;
+        saldoAtual = parseFloat(d.saldo);
+        const sf = Number.isInteger(saldoAtual) ? saldoAtual : saldoAtual.toFixed(2);
+        document.getElementById('info-saldo').value = sf + ' ' + d.unidade;
+        document.getElementById('info-saldo').className =
+          'form-control form-control-lg fw-bold ' + (saldoAtual <= 0 ? 'text-danger' : 'text-success');
+        document.getElementById('campo-quantidade').focus();
+      } else {
+        document.getElementById('info-descricao').value = '⚠️ Código não encontrado';
+        document.getElementById('info-saldo').value     = '—';
+        saldoAtual = 0;
+      }
+    }).catch(() => {});
+}
+
+document.getElementById('campo-codigo').addEventListener('change', function() {
+  buscarMaterial(this.value);
+});
+
+window.addEventListener('load', function() {
+  const c = document.getElementById('campo-codigo').value;
+  if (c) buscarMaterial(c);
+});
+
+function abrirCamera() {
+  document.getElementById('camera-container').classList.remove('d-none');
+  leitorAtivo = new Html5Qrcode('leitor-saida');
+  leitorAtivo.start(
+    { facingMode: 'environment' },
+    { fps: 10, qrbox: { width: 280, height: 120 } },
+    (codigo) => {
+      document.getElementById('campo-codigo').value = codigo.toUpperCase();
+      fecharCamera();
+      buscarMaterial(codigo);
+    }, () => {}
+  ).catch(e => alert('Erro câmera: ' + e));
+}
+
+function fecharCamera() {
+  if (leitorAtivo) { leitorAtivo.stop().catch(() => {}); leitorAtivo = null; }
+  document.getElementById('camera-container').classList.add('d-none');
+}
+
+function validarSaida() {
+  const qtd = parseFloat(document.getElementById('campo-quantidade').value);
+  if (qtd <= 0 || isNaN(qtd)) { alert('Quantidade inválida!'); return false; }
+  if (qtd > saldoAtual) {
+    alert(`Saldo insuficiente!\nSaldo atual: ${saldoAtual}\nQuantidade solicitada: ${qtd}`);
+    return false;
+  }
+  return true;
+}
+</script>
 {% endblock %}
