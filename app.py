@@ -53,12 +53,12 @@ def query(sql, params=None, fetchone=False, fetchall=False, commit=False):
 def gerar_barcode_base64(codigo):
     try:
         writer_options = {
-            'module_width':  0.25,   # largura de cada barra (mm)
-            'module_height': 8.0,    # altura das barras (mm) — proporcional
-            'font_size':     0,      # sem texto gerado pela lib
+            'module_width':  0.3,
+            'module_height': 10.0,
+            'font_size':     0,
             'text_distance': 0,
-            'quiet_zone':    2.0,    # margem lateral mínima
-            'dpi':           200,    # resolução adequada para Zebra
+            'quiet_zone':    2.0,
+            'dpi':           300,
             'write_text':    False,
         }
         code128 = python_barcode.get('code128', str(codigo),
@@ -68,15 +68,17 @@ def gerar_barcode_base64(codigo):
         buf.seek(0)
 
         img = Image.open(buf).convert('RGB')
-        # auto-crop bordas brancas
         bg   = Image.new('RGB', img.size, (255, 255, 255))
         diff = ImageChops.difference(img, bg)
         bbox = diff.getbbox()
         if bbox:
             img = img.crop(bbox)
 
-        # redimensiona para exatamente 330×85 px (proporcional a ~42mm × 11mm @ 200dpi)
-        img = img.resize((330, 85), Image.LANCZOS)
+        # Altura fixa de 85px, largura proporcional — sem distorção
+        razao = img.width / img.height
+        nova_altura = 85
+        nova_largura = int(nova_altura * razao)
+        img = img.resize((nova_largura, nova_altura), Image.LANCZOS)
 
         out = io.BytesIO()
         img.save(out, format='PNG', optimize=True)
@@ -84,6 +86,7 @@ def gerar_barcode_base64(codigo):
     except Exception as e:
         app.logger.error(f'Barcode error: {e}')
         return None
+
 
 
 def calcular_saldo(codigo):
