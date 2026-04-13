@@ -6,7 +6,7 @@
   <style>
 
     @page {
-      size: 120mm 50mm;
+      size: 50mm 100mm portrait;
       margin: 0;
     }
 
@@ -19,23 +19,30 @@
     }
 
     html, body {
-      width: 120mm;
-      height: 50mm;
+      width: 50mm;
+      height: 100mm;
       overflow: hidden;
       background: #fff;
     }
 
+    /*
+      Conteúdo em 100mm × 50mm girado +90deg
+      ancorando no canto inferior esquerdo da página 50×100mm
+    */
     .etiqueta {
       position: absolute;
-      left: 20mm;
-      top: 0;
+      bottom: 0;
+      left: 0;
       width: 100mm;
       height: 50mm;
-      padding: 2mm 3mm 2mm 3mm;
+      transform: rotate(90deg);
+      transform-origin: bottom left;
+
+      padding: 2.5mm 3mm 2mm 3mm;
       font-family: Arial, Helvetica, sans-serif;
       display: flex;
       flex-direction: column;
-      gap: 1.2mm;
+      justify-content: space-between;
       background: #fff;
     }
 
@@ -46,7 +53,6 @@
       align-items: center;
       border-bottom: 0.5mm solid #000;
       padding-bottom: 1.2mm;
-      flex-shrink: 0;
     }
     .empresa {
       font-size: 9pt;
@@ -56,24 +62,22 @@
       color: #000;
     }
     .data {
-      font-size: 8pt;
-      font-weight: 700;
-      color: #000;
+      font-size: 7pt;
+      color: #333;
     }
 
     /* LINHA CÓDIGO + UNIDADE */
     .linha-codigo {
       display: flex;
-      align-items: baseline;
+      align-items: center;
       gap: 1.5mm;
-      flex-shrink: 0;
     }
     .label-cod {
       font-size: 7pt;
       color: #555;
     }
     .valor-codigo {
-      font-size: 18pt;
+      font-size: 17pt;
       font-weight: 900;
       letter-spacing: 1px;
       line-height: 1;
@@ -81,7 +85,7 @@
     }
     .badge-un {
       margin-left: auto;
-      font-size: 8pt;
+      font-size: 7.5pt;
       font-weight: 900;
       background: #000;
       color: #fff;
@@ -92,12 +96,11 @@
 
     /* DESCRIÇÃO */
     .descricao {
-      font-size: 8.5pt;
+      font-size: 8pt;
       font-weight: 700;
       text-transform: uppercase;
       color: #000;
       line-height: 1.25;
-      flex-shrink: 0;
       overflow: hidden;
       display: -webkit-box;
       -webkit-line-clamp: 2;
@@ -106,19 +109,28 @@
 
     /* CÓDIGO DE BARRAS */
     .barcode-wrap {
-      flex: 1;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
-      border-top: 0.3mm solid #ccc;
+      border-top: 0.3mm solid #bbb;
       padding-top: 1mm;
+      flex: 1;
     }
     .barcode-wrap img {
+      width: 94mm;
       height: 13mm;
-      width: auto;
-      max-width: 92mm;
+      object-fit: fill;
       display: block;
       image-rendering: pixelated;
+    }
+    .barcode-texto {
+      font-size: 6.5pt;
+      font-family: 'Courier New', monospace;
+      font-weight: 700;
+      letter-spacing: 3px;
+      margin-top: 0.5mm;
+      color: #000;
     }
 
   </style>
@@ -143,6 +155,7 @@
   <div class="barcode-wrap">
     <img src="data:image/png;base64,{{ barcode_img }}"
          alt="{{ material.codigo }}">
+    <span class="barcode-texto">{{ material.codigo }}</span>
   </div>
   {% endif %}
 
