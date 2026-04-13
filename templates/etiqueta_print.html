@@ -6,7 +6,7 @@
   <style>
 
     @page {
-      size: 100mm 50mm landscape;
+      size: 50mm 100mm portrait;
       margin: 0mm;
     }
 
@@ -19,22 +19,33 @@
     }
 
     html, body {
-      width: 100mm;
-      height: 50mm;
+      width: 50mm;
+      height: 100mm;
       overflow: hidden;
       background: #fff;
     }
 
+    /*
+      Página física: 50mm (largura) × 100mm (altura) — RETRATO
+      Conteúdo da etiqueta: 100mm × 50mm — PAISAGEM
+      Técnica: cria div de 96mm × 46mm (com margem de 2mm dos bordos),
+      posiciona no centro da página e gira +90°
+    */
     .etiqueta {
-      width: 100mm;
-      height: 50mm;
-      padding: 2mm 3mm 1.5mm 3mm;
+      position: absolute;
+      width:  96mm;
+      height: 46mm;
+      top:  50mm;   /* centro vertical da página 100mm */
+      left: -23mm;  /* (50mm - 96mm) / 2 = -23mm */
+      transform: rotate(90deg);
+      transform-origin: top left;
+      padding: 2mm 2.5mm 1.5mm 2.5mm;
       font-family: Arial, Helvetica, sans-serif;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
       background: #fff;
-      position: relative;
+      border: 0.3mm solid #ccc;
     }
 
     /* CABEÇALHO */
@@ -44,12 +55,14 @@
       align-items: center;
       border-bottom: 0.4mm solid #000;
       padding-bottom: 1mm;
+      flex-shrink: 0;
     }
     .empresa {
-      font-size: 8pt;
+      font-size: 8.5pt;
       font-weight: 900;
       text-transform: uppercase;
       letter-spacing: 0.5px;
+      color: #000;
     }
     .data {
       font-size: 6.5pt;
@@ -61,14 +74,14 @@
       display: flex;
       align-items: center;
       gap: 1.5mm;
-      margin-top: 1mm;
+      flex-shrink: 0;
     }
     .label-cod {
       font-size: 6.5pt;
       color: #555;
     }
     .valor-codigo {
-      font-size: 16pt;
+      font-size: 17pt;
       font-weight: 900;
       letter-spacing: 1px;
       line-height: 1;
@@ -95,7 +108,7 @@
       display: -webkit-box;
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
-      margin-top: 1mm;
+      flex-shrink: 0;
     }
 
     /* CÓDIGO DE BARRAS */
@@ -103,13 +116,14 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      border-top: 0.3mm solid #bbb;
+      justify-content: center;
+      border-top: 0.3mm solid #aaa;
       padding-top: 1mm;
-      margin-top: 1mm;
+      flex: 1;
     }
     .barcode-wrap img {
-      width: 94mm;
-      height: 14mm;
+      width:  91mm;
+      height: 13mm;
       object-fit: fill;
       display: block;
       image-rendering: pixelated;
@@ -119,6 +133,7 @@
       font-family: 'Courier New', monospace;
       font-weight: 700;
       letter-spacing: 3px;
+      color: #000;
       margin-top: 0.5mm;
     }
 
