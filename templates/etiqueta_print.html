@@ -6,7 +6,7 @@
   <style>
 
     @page {
-      size: 50mm 100mm portrait;
+      size: 100mm 50mm landscape;
       margin: 0;
     }
 
@@ -19,26 +19,22 @@
     }
 
     html, body {
-      width: 50mm;
-      height: 100mm;
+      width: 100mm;
+      height: 50mm;
       overflow: hidden;
       background: #fff;
     }
 
-    /*
-      Conteúdo em 100mm × 50mm girado +90deg
-      ancorando no canto inferior esquerdo da página 50×100mm
-    */
     .etiqueta {
       position: absolute;
-      bottom: 0;
+      top: 0;
       left: 0;
       width: 100mm;
       height: 50mm;
-      transform: rotate(90deg);
-      transform-origin: bottom left;
 
-      padding: 2.5mm 3mm 2mm 3mm;
+      /* desloca conteúdo para a direita */
+      padding: 2.5mm 3mm 2mm 8mm;
+
       font-family: Arial, Helvetica, sans-serif;
       display: flex;
       flex-direction: column;
@@ -53,6 +49,7 @@
       align-items: center;
       border-bottom: 0.5mm solid #000;
       padding-bottom: 1.2mm;
+      flex-shrink: 0;
     }
     .empresa {
       font-size: 9pt;
@@ -71,6 +68,7 @@
       display: flex;
       align-items: center;
       gap: 1.5mm;
+      flex-shrink: 0;
     }
     .label-cod {
       font-size: 7pt;
@@ -101,36 +99,37 @@
       text-transform: uppercase;
       color: #000;
       line-height: 1.25;
+      flex-shrink: 0;
       overflow: hidden;
       display: -webkit-box;
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
     }
 
-    /* CÓDIGO DE BARRAS */
+    /* CÓDIGO DE BARRAS — menor */
     .barcode-wrap {
+      flex: 1;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       border-top: 0.3mm solid #bbb;
       padding-top: 1mm;
-      flex: 1;
     }
     .barcode-wrap img {
-      width: 94mm;
-      height: 13mm;
-      object-fit: fill;
+      height: 10mm;       /* reduzido de 13mm → 10mm */
+      width: auto;
+      max-width: 86mm;
       display: block;
       image-rendering: pixelated;
     }
     .barcode-texto {
-      font-size: 6.5pt;
+      font-size: 6pt;
       font-family: 'Courier New', monospace;
       font-weight: 700;
       letter-spacing: 3px;
-      margin-top: 0.5mm;
       color: #000;
+      margin-top: 0.5mm;
     }
 
   </style>
