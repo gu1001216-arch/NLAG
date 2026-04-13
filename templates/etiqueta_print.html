@@ -28,11 +28,12 @@
     .etiqueta {
       width: 100mm;
       height: 50mm;
-      padding: 2mm 3mm 1.5mm 3mm;
+      /* desloca 20mm à direita conforme solicitado */
+      padding: 2mm 3mm 2mm 23mm;
       font-family: Arial, Helvetica, sans-serif;
       display: flex;
       flex-direction: column;
-      gap: 1mm;
+      gap: 1.2mm;
       background: #fff;
     }
 
@@ -42,19 +43,20 @@
       justify-content: space-between;
       align-items: center;
       border-bottom: 0.5mm solid #000;
-      padding-bottom: 1mm;
+      padding-bottom: 1.2mm;
       flex-shrink: 0;
     }
     .empresa {
-      font-size: 8pt;
+      font-size: 9pt;
       font-weight: 900;
       text-transform: uppercase;
       letter-spacing: 0.5px;
       color: #000;
     }
     .data {
-      font-size: 6pt;
-      color: #444;
+      font-size: 8pt;
+      font-weight: 700;
+      color: #000;
     }
 
     /* LINHA CÓDIGO + UNIDADE */
@@ -65,11 +67,11 @@
       flex-shrink: 0;
     }
     .label-cod {
-      font-size: 6pt;
-      color: #666;
+      font-size: 7pt;
+      color: #555;
     }
     .valor-codigo {
-      font-size: 16pt;
+      font-size: 18pt;
       font-weight: 900;
       letter-spacing: 1px;
       line-height: 1;
@@ -77,18 +79,18 @@
     }
     .badge-un {
       margin-left: auto;
-      font-size: 7pt;
+      font-size: 8pt;
       font-weight: 900;
       background: #000;
       color: #fff;
-      padding: 0.5mm 2mm;
+      padding: 0.8mm 2mm;
       border-radius: 2px;
       white-space: nowrap;
     }
 
     /* DESCRIÇÃO */
     .descricao {
-      font-size: 7pt;
+      font-size: 8.5pt;
       font-weight: 700;
       text-transform: uppercase;
       color: #000;
@@ -100,31 +102,21 @@
       -webkit-box-orient: vertical;
     }
 
-    /* CÓDIGO DE BARRAS */
+    /* CÓDIGO DE BARRAS — sem texto abaixo */
     .barcode-wrap {
       flex: 1;
       display: flex;
-      flex-direction: column;
       align-items: center;
       justify-content: center;
       border-top: 0.3mm solid #ccc;
       padding-top: 1mm;
     }
     .barcode-wrap img {
-      /* Proporção natural preservada — sem esticar */
-      height: 11mm;
+      height: 13mm;
       width: auto;
-      max-width: 94mm;
+      max-width: 72mm;
       display: block;
       image-rendering: pixelated;
-    }
-    .barcode-texto {
-      font-size: 6pt;
-      font-family: 'Courier New', monospace;
-      font-weight: 700;
-      letter-spacing: 3px;
-      color: #000;
-      margin-top: 0.5mm;
     }
 
   </style>
@@ -149,7 +141,6 @@
   <div class="barcode-wrap">
     <img src="data:image/png;base64,{{ barcode_img }}"
          alt="{{ material.codigo }}">
-    <span class="barcode-texto">{{ material.codigo }}</span>
   </div>
   {% endif %}
 
