@@ -6,6 +6,7 @@ from datetime import datetime
 import barcode
 from barcode.writer import ImageWriter
 import io, base64, csv, os, socket
+import urllib.request, urllib.error, json as json_lib
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'nlag_deposito_2026')
@@ -59,19 +60,16 @@ def calcular_saldo(codigo):
     return float(row['saldo']) if row else 0.0
 
 # ─────────────────────────────────────────
-# IMPRESSÃO ZEBRA VIA REDE (ZPL)
-# Sem forçar PW/LL — usa config da impressora
+# ZPL — sem forçar config da impressora
 # ─────────────────────────────────────────
 def gerar_zpl(codigo, descricao, data_hora, copias=1):
     desc  = descricao[:35] if len(descricao) > 35 else descricao
     desc2 = descricao[35:70] if len(descricao) > 35 else ''
-
-    zpl  = "^XA\n"
-    zpl += f"^PQ{copias},0,1,Y\n"
-    zpl += "^FO20,15^A0N,28,28^FDNLAG - DEPOSITO^FS\n"
-    zpl += "^FO20,48^GB700,2,2^FS\n"
-    zpl += f"^FO20,60^A0N,24,24^FDCod: {codigo}^FS\n"
-
+    zpl   = "^XA\n"
+    zpl  += f"^PQ{copias},0,1,Y\n"
+    zpl  += "^FO20,15^A0N,28,28^FDNLAG - DEPOSITO^FS\n"
+    zpl  += "^FO20,48^GB700,2,2^FS\n"
+    zpl  += f"^FO20,60^A0N,24,24^FDCod: {codigo}^FS\n"
     if desc2:
         zpl += f"^FO20,90^A0N,22,22^FD{desc}^FS\n"
         zpl += f"^FO20,116^A0N,22,22^FD{desc2}^FS\n"
@@ -83,23 +81,60 @@ def gerar_zpl(codigo, descricao, data_hora, copias=1):
         zpl += f"^FO20,120^A0N,18,18^FDData: {data_hora}^FS\n"
         zpl += "^FO20,148^GB700,2,2^FS\n"
         zpl += f"^FO60,162^BCN,110,Y,N,N^FD{codigo}^FS\n"
-
     zpl += "^XZ"
     return zpl
 
-def enviar_para_zebra(ip, zpl, porta=9100, timeout=5):
+# ─────────────────────────────────────────
+# API — TESTA SERVIDOR LOCAL (impressora.exe)
+# ─────────────────────────────────────────
+@app.route('/api/testar_servidor', methods=['POST'])
+def api_testar_servidor():
+    data     = request.get_json(force=True) or {}
+    servidor = data.get('servidor', '').rstrip('/')
+    if not servidor:
+        return jsonify({'ok': False, 'msg': 'Endereço não informado'}), 400
     try:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.settimeout(timeout)
-            s.connect((ip.strip(), porta))
-            s.sendall(zpl.encode('utf-8'))
-        return True, "✅ Etiqueta(s) enviada(s) para a impressora com sucesso!"
-    except socket.timeout:
-        return False, f"❌ Timeout: impressora {ip} não respondeu. Verifique se está ligada na rede."
-    except ConnectionRefusedError:
-        return False, f"❌ Conexão recusada pelo IP {ip}. Verifique o IP e a porta 9100."
-    except OSError as e:
-        return False, f"❌ Erro de rede: {str(e)}"
+        req = urllib.request.Request(f"{servidor}/ping", method='GET')
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            resultado = json_lib.loads(resp.read().decode())
+            return jsonify({'ok': True, 'msg': resultado.get('msg', 'Online!')})
+    except Exception:
+        return jsonify({
+            'ok': False,
+            'msg': f'Servidor não encontrado em {servidor}. '
+                   f'Verifique se o NLAG_Impressora.exe está rodando.'
+        })
+
+# ─────────────────────────────────────────
+# API — ENVIA ZPL AO SERVIDOR LOCAL
+# ─────────────────────────────────────────
+@app.route('/api/imprimir_zpl', methods=['POST'])
+def api_imprimir_zpl():
+    data     = request.get_json(force=True) or {}
+    zpl      = data.get('zpl', '')
+    servidor = data.get('servidor', '').rstrip('/')
+    if not zpl:
+        return jsonify({'ok': False, 'msg': 'ZPL vazio'}), 400
+    if not servidor:
+        return jsonify({'ok': False, 'msg': 'Endereço do servidor não informado'}), 400
+    try:
+        req = urllib.request.Request(
+            f"{servidor}/imprimir",
+            data=zpl.encode('utf-8'),
+            headers={'Content-Type': 'text/plain'},
+            method='POST'
+        )
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            resultado = json_lib.loads(resp.read().decode())
+            return jsonify(resultado)
+    except urllib.error.URLError:
+        return jsonify({
+            'ok': False,
+            'msg': f'❌ Servidor local não encontrado em {servidor}. '
+                   f'Verifique se o NLAG_Impressora.exe está rodando no PC.'
+        }), 502
+    except Exception as e:
+        return jsonify({'ok': False, 'msg': f'❌ Erro: {str(e)}'}), 500
 
 # ─────────────────────────────────────────
 # AUTENTICAÇÃO
@@ -166,7 +201,6 @@ def index():
 def materiais():
     if request.method == 'POST':
         acao = request.form.get('acao')
-
         if acao == 'cadastrar':
             codigo    = request.form['codigo'].strip().upper()
             descricao = request.form['descricao'].strip().upper()
@@ -179,15 +213,12 @@ def materiais():
                 flash(f"✅ Material {codigo} — {descricao} cadastrado!", "success")
             except Exception:
                 flash(f"⚠️ Código {codigo} já existe no sistema.", "danger")
-
         elif acao == 'excluir':
             codigo = request.form['codigo'].strip().upper()
-            query('DELETE FROM materiais WHERE codigo = %s',
-                  (codigo,), commit=True)
+            query('DELETE FROM materiais WHERE codigo = %s', (codigo,), commit=True)
             flash(f"🗑️ Material {codigo} excluído.", "warning")
 
-    lista = query('SELECT * FROM materiais ORDER BY descricao',
-                  fetchall=True) or []
+    lista = query('SELECT * FROM materiais ORDER BY descricao', fetchall=True) or []
     return render_template('materiais.html', lista=lista)
 
 # ─────────────────────────────────────────
@@ -213,16 +244,14 @@ def importar_csv():
         flash("❌ Não foi possível ler o arquivo.", "danger")
         return redirect(url_for('materiais'))
 
-    stream  = io.StringIO(conteudo, newline=None)
-    amostra = conteudo[:1024]
-    sep     = ';' if amostra.count(';') >= amostra.count(',') else ','
-    reader  = csv.DictReader(stream, delimiter=sep)
-
+    stream    = io.StringIO(conteudo, newline=None)
+    amostra   = conteudo[:1024]
+    sep       = ';' if amostra.count(';') >= amostra.count(',') else ','
+    reader    = csv.DictReader(stream, delimiter=sep)
     inseridos = 0
     ignorados = 0
     erros     = []
-
-    conn = get_db()
+    conn      = get_db()
 
     for i, row in enumerate(reader, start=2):
         cur = conn.cursor()
@@ -232,13 +261,11 @@ def importar_csv():
             codigo    = row.get('codigo',    '').strip().upper()
             descricao = row.get('descricao', '').strip().upper()
             unidade   = row.get('unidade',   '').strip().upper()
-
             if not codigo or not descricao or not unidade:
                 erros.append(f"Linha {i}: campos vazios")
                 ignorados += 1
                 cur.close()
                 continue
-
             cur.execute(
                 'INSERT INTO materiais (codigo, descricao, unidade) '
                 'VALUES (%s, %s, %s) ON CONFLICT (codigo) DO NOTHING',
@@ -249,10 +276,8 @@ def importar_csv():
             else:
                 ignorados += 1
                 erros.append(f"Linha {i}: '{codigo}' já existe")
-
             conn.commit()
             cur.close()
-
         except Exception as e:
             conn.rollback()
             erros.append(f"Linha {i}: erro — {str(e)[:60]}")
@@ -261,18 +286,16 @@ def importar_csv():
                 cur.close()
 
     conn.close()
-
     partes = [f"✅ {inseridos} material(is) importado(s)!"]
     if ignorados:
         partes.append(f"⚠️ {ignorados} linha(s) ignorada(s).")
     if erros:
         partes.append("Detalhes: " + " | ".join(erros[:5]))
-
     flash(" ".join(partes), "success" if inseridos > 0 else "warning")
     return redirect(url_for('materiais'))
 
 # ─────────────────────────────────────────
-# ENTRADA + IMPRESSÃO ZEBRA
+# ENTRADA
 # ─────────────────────────────────────────
 @app.route('/entrada', methods=['GET', 'POST'])
 def entrada():
@@ -280,61 +303,39 @@ def entrada():
     barcode_img = None
     quantidade  = None
     agora_str   = datetime.now().strftime('%d/%m/%Y %H:%M')
-    msg_zebra   = None
 
     if request.method == 'POST':
-        acao      = request.form.get('acao', 'registrar')
         codigo    = request.form.get('codigo', '').strip().upper()
         quantidade = request.form.get('quantidade', '')
         obs       = request.form.get('observacao', '')
-        data_hora = datetime.now().strftime('%d/%m/%Y %H:%M')
 
         material = query(
             'SELECT * FROM materiais WHERE codigo = %s',
             (codigo,), fetchone=True
         )
 
-        if acao == 'registrar':
-            if material:
-                try:
-                    qtd = float(quantidade)
-                    if qtd <= 0:
-                        flash("❌ Quantidade deve ser maior que zero.", "danger")
-                    else:
-                        query(
-                            'INSERT INTO movimentacoes '
-                            '(codigo, tipo, quantidade, data_hora, observacao) '
-                            'VALUES (%s,%s,%s,%s,%s)',
-                            (codigo, 'ENTRADA', qtd,
-                             datetime.now().strftime('%Y-%m-%d %H:%M:%S'), obs),
-                            commit=True
-                        )
-                        barcode_img = gerar_barcode_base64(codigo)
-                        flash(f"✅ Entrada de {qtd} {material['unidade']} "
-                              f"de {material['descricao']} registrada!", "success")
-                except ValueError:
-                    flash("❌ Quantidade inválida.", "danger")
-            else:
-                flash(f"❌ Código {codigo} não encontrado.", "danger")
-
-        elif acao == 'imprimir_zebra':
-            ip_zebra = request.form.get('ip_zebra', '').strip()
-            copias   = request.form.get('copias', '1').strip()
+        if material:
             try:
-                copias_int = max(1, min(999, int(copias)))
+                qtd = float(quantidade)
+                if qtd <= 0:
+                    flash("❌ Quantidade deve ser maior que zero.", "danger")
+                else:
+                    query(
+                        'INSERT INTO movimentacoes '
+                        '(codigo, tipo, quantidade, data_hora, observacao) '
+                        'VALUES (%s,%s,%s,%s,%s)',
+                        (codigo, 'ENTRADA', qtd,
+                         datetime.now().strftime('%Y-%m-%d %H:%M:%S'), obs),
+                        commit=True
+                    )
+                    barcode_img = gerar_barcode_base64(codigo)
+                    flash(f"✅ Entrada de {int(qtd) if qtd == int(qtd) else qtd} "
+                          f"{material['unidade']} de {material['descricao']} registrada!",
+                          "success")
             except ValueError:
-                copias_int = 1
-
-            if not ip_zebra:
-                msg_zebra = ("danger", "❌ Informe o IP da impressora Zebra.")
-            elif not material:
-                msg_zebra = ("danger", f"❌ Código {codigo} não encontrado.")
-            else:
-                zpl = gerar_zpl(codigo, material['descricao'], data_hora, copias_int)
-                ok, mensagem = enviar_para_zebra(ip_zebra, zpl)
-                msg_zebra = ("success" if ok else "danger", mensagem)
-                barcode_img = gerar_barcode_base64(codigo)
-                session['ip_zebra'] = ip_zebra
+                flash("❌ Quantidade inválida.", "danger")
+        else:
+            flash(f"❌ Código {codigo} não encontrado.", "danger")
 
     materiais_lista = query(
         'SELECT codigo, descricao FROM materiais ORDER BY descricao',
@@ -346,9 +347,7 @@ def entrada():
                            barcode_img=barcode_img,
                            materiais=materiais_lista,
                            quantidade=quantidade,
-                           agora=agora_str,
-                           msg_zebra=msg_zebra,
-                           ip_zebra_salvo=session.get('ip_zebra', ''))
+                           agora=agora_str)
 
 # ─────────────────────────────────────────
 # IMPRIMIR ETIQUETA AVULSA
@@ -357,35 +356,17 @@ def entrada():
 def imprimir_etiqueta():
     material    = None
     barcode_img = None
-    msg_zebra   = None
     agora_str   = datetime.now().strftime('%d/%m/%Y %H:%M')
 
-    if request.method == 'POST':
-        codigo   = request.form.get('codigo', '').strip().upper()
-        ip_zebra = request.form.get('ip_zebra', '').strip()
-        copias   = request.form.get('copias', '1').strip()
-
-        try:
-            copias_int = max(1, min(999, int(copias)))
-        except ValueError:
-            copias_int = 1
-
+    codigo = request.args.get('codigo', '') or request.form.get('codigo', '')
+    if codigo:
+        codigo   = codigo.strip().upper()
         material = query(
             'SELECT * FROM materiais WHERE codigo = %s',
             (codigo,), fetchone=True
         )
-
-        if not material:
-            flash(f"❌ Código {codigo} não encontrado.", "danger")
-        elif not ip_zebra:
-            flash("❌ Informe o IP da impressora Zebra.", "danger")
+        if material:
             barcode_img = gerar_barcode_base64(codigo)
-        else:
-            zpl = gerar_zpl(codigo, material['descricao'], agora_str, copias_int)
-            ok, mensagem = enviar_para_zebra(ip_zebra, zpl)
-            msg_zebra = ("success" if ok else "danger", mensagem)
-            barcode_img = gerar_barcode_base64(codigo)
-            session['ip_zebra'] = ip_zebra
 
     materiais_lista = query(
         'SELECT codigo, descricao FROM materiais ORDER BY descricao',
@@ -396,8 +377,6 @@ def imprimir_etiqueta():
                            material=material,
                            barcode_img=barcode_img,
                            materiais=materiais_lista,
-                           msg_zebra=msg_zebra,
-                           ip_zebra_salvo=session.get('ip_zebra', ''),
                            agora=agora_str)
 
 # ─────────────────────────────────────────
@@ -409,7 +388,6 @@ def saida():
         codigo    = request.form.get('codigo', '').strip().upper()
         obs       = request.form.get('observacao', '')
         data_hora = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-
         try:
             quantidade = float(request.form.get('quantidade', 0))
         except ValueError:
@@ -419,7 +397,6 @@ def saida():
             'SELECT * FROM materiais WHERE codigo = %s',
             (codigo,), fetchone=True
         )
-
         if material:
             saldo_atual = calcular_saldo(codigo)
             if quantidade <= 0:
@@ -450,7 +427,6 @@ def saida():
 def historico():
     filtro = request.args.get('codigo', '').strip().upper()
     tipo_f = request.args.get('tipo', '')
-
     sql    = '''
         SELECT mov.*, m.descricao, m.unidade
         FROM movimentacoes mov
@@ -465,10 +441,8 @@ def historico():
         sql += ' AND mov.tipo = %s'
         params.append(tipo_f)
     sql += ' ORDER BY mov.data_hora DESC LIMIT 500'
-
     movs = query(sql, params, fetchall=True) or []
-    return render_template('historico.html',
-                           movs=movs, filtro=filtro, tipo_f=tipo_f)
+    return render_template('historico.html', movs=movs, filtro=filtro, tipo_f=tipo_f)
 
 # ─────────────────────────────────────────
 # EXPORTAR SALDO CSV
@@ -476,8 +450,7 @@ def historico():
 @app.route('/exportar_saldo')
 def exportar_saldo():
     saldo = query('''
-        SELECT
-            m.codigo, m.descricao, m.unidade,
+        SELECT m.codigo, m.descricao, m.unidade,
             COALESCE(SUM(CASE WHEN mov.tipo='ENTRADA' THEN mov.quantidade ELSE 0 END), 0)
           - COALESCE(SUM(CASE WHEN mov.tipo='SAIDA'   THEN mov.quantidade ELSE 0 END), 0)
           AS saldo
@@ -495,8 +468,7 @@ def exportar_saldo():
             yield f"{row['codigo']};{row['descricao']};{row['unidade']};{sf}\n"
 
     return Response(gerar(), mimetype='text/csv',
-                    headers={'Content-Disposition':
-                             'attachment; filename=saldo_estoque.csv'})
+                    headers={'Content-Disposition': 'attachment; filename=saldo_estoque.csv'})
 
 # ─────────────────────────────────────────
 # EXPORTAR HISTÓRICO CSV
@@ -519,8 +491,7 @@ def exportar_historico():
                    f"{r['observacao'] or ''}\n")
 
     return Response(gerar(), mimetype='text/csv',
-                    headers={'Content-Disposition':
-                             'attachment; filename=historico.csv'})
+                    headers={'Content-Disposition': 'attachment; filename=historico.csv'})
 
 # ─────────────────────────────────────────
 # API AJAX
