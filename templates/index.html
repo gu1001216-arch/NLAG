@@ -1,22 +1,9 @@
-{% extends "base.html" %}
+{% extends 'base.html' %}
 {% block content %}
-
-<div class="d-flex justify-content-between align-items-center mb-4 no-print">
-  <div>
-    <h4 class="mb-0"><i class="bi bi-speedometer2"></i> Dashboard — Saldo do Estoque</h4>
-    <small class="text-muted">Atualizado em: {{ agora }}</small>
-  </div>
-  <div>
-    <a href="/exportar_saldo" class="btn btn-success btn-sm me-2">
-      <i class="bi bi-file-earmark-spreadsheet"></i> Exportar CSV
-    </a>
-    <button onclick="window.print()" class="btn btn-secondary btn-sm">
-      <i class="bi bi-printer"></i> Imprimir
-    </button>
-  </div>
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h4 class="mb-0"><i class="bi bi-speedometer2 text-primary"></i> Dashboard</h4>
+  <span class="text-muted small"><i class="bi bi-clock"></i> {{ agora }}</span>
 </div>
-
-<!-- CARDS -->
 <div class="row g-3 mb-4 no-print">
   <div class="col-6 col-md-3">
     <div class="card text-center p-3">
@@ -42,25 +29,29 @@
   <div class="col-6 col-md-3">
     <div class="card text-center p-3">
       <div style="font-size:2rem;color:#fd7e14;"><i class="bi bi-calendar-date"></i></div>
-      <div style="font-size:1rem;font-weight:700;color:#fd7e14;">{{ agora }}</div>
-      <div class="text-muted" style="font-size:0.85rem;">Data/Hora</div>
+      <div style="font-size:0.95rem;font-weight:700;color:#fd7e14;">{{ agora }}</div>
+      <div class="text-muted" style="font-size:0.85rem;">Atualizado em</div>
     </div>
   </div>
 </div>
-
-<!-- TABELA -->
 <div class="card">
-  <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-    <span><i class="bi bi-table"></i> Posição de Estoque</span>
-    <span class="badge bg-primary">{{ saldo | length }} itens</span>
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-table"></i> Saldo em Estoque</span>
+    <div class="d-flex gap-2 no-print">
+      <input type="text" id="filtro-tabela" class="form-control form-control-sm"
+             placeholder="🔍 Filtrar..." style="width:200px;"
+             onkeyup="filtrarTabela()">
+      <a href="/exportar_saldo" class="btn btn-sm btn-outline-success">
+        <i class="bi bi-file-earmark-spreadsheet"></i> CSV
+      </a>
+      <button onclick="window.print()" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-printer"></i>
+      </button>
+    </div>
   </div>
   <div class="card-body p-0">
-    <div class="p-2 no-print">
-      <input type="text" id="busca-saldo" class="form-control form-control-sm"
-             placeholder="Filtrar por código ou descrição...">
-    </div>
     <div class="table-responsive">
-      <table class="table table-hover table-striped mb-0" id="tabela-saldo">
+      <table class="table table-hover mb-0" id="tabela-saldo">
         <thead>
           <tr>
             <th>Código</th>
@@ -72,38 +63,33 @@
         </thead>
         <tbody>
           {% for item in saldo %}
-          {% set saldo_num = item.saldo | float %}
-          <tr class="{{ 'table-danger' if saldo_num <= 0 else '' }}">
+          {% set s = item.saldo | float %}
+          <tr class="{{ 'table-danger' if s <= 0 else '' }}">
             <td><code>{{ item.codigo }}</code></td>
             <td>{{ item.descricao }}</td>
             <td><span class="badge bg-secondary">{{ item.unidade }}</span></td>
-            <td class="text-end fw-bold {{ 'text-danger' if saldo_num <= 0 else 'text-success' }}">
-              {% if saldo_num == saldo_num | int %}
-                {{ saldo_num | int }}
-              {% else %}
-                {{ "%.2f" | format(saldo_num) }}
-              {% endif %}
+            <td class="text-end fw-bold {{ 'text-danger' if s <= 0 else 'text-success' }}">
+              {% if s == s | int %}{{ s | int }}{% else %}{{ "%.2f" | format(s) }}{% endif %}
             </td>
             <td class="text-center no-print">
-              <a href="/entrada?codigo={{ item.codigo }}"
-                 class="btn btn-success btn-sm" title="Entrada">
+              <a href="/entrada?codigo={{ item.codigo }}" class="btn btn-success btn-sm" title="Entrada">
                 <i class="bi bi-plus-circle"></i>
               </a>
-              <a href="/saida?codigo={{ item.codigo }}"
-                 class="btn btn-danger btn-sm" title="Saída">
+              <a href="/saida?codigo={{ item.codigo }}" class="btn btn-danger btn-sm" title="Saída">
                 <i class="bi bi-dash-circle"></i>
               </a>
-              <a href="/historico?codigo={{ item.codigo }}"
-                 class="btn btn-info btn-sm" title="Histórico">
+              <a href="/historico?codigo={{ item.codigo }}" class="btn btn-info btn-sm" title="Histórico">
                 <i class="bi bi-clock-history"></i>
+              </a>
+              <a href="/imprimir_etiqueta?codigo={{ item.codigo }}" class="btn btn-primary btn-sm" title="Imprimir Etiqueta">
+                <i class="bi bi-tag"></i>
               </a>
             </td>
           </tr>
           {% else %}
           <tr>
             <td colspan="5" class="text-center text-muted py-4">
-              Nenhum material cadastrado.
-              <a href="/materiais">Cadastrar agora</a>
+              Nenhum material cadastrado. <a href="/materiais">Cadastrar agora</a>
             </td>
           </tr>
           {% endfor %}
@@ -112,13 +98,12 @@
     </div>
   </div>
 </div>
-
 <script>
-  document.getElementById('busca-saldo').addEventListener('input', function () {
-    const termo = this.value.toLowerCase();
-    document.querySelectorAll('#tabela-saldo tbody tr').forEach(tr => {
-      tr.style.display = tr.textContent.toLowerCase().includes(termo) ? '' : 'none';
-    });
+function filtrarTabela() {
+  const filtro = document.getElementById('filtro-tabela').value.toLowerCase();
+  document.querySelectorAll('#tabela-saldo tbody tr').forEach(tr => {
+    tr.style.display = tr.innerText.toLowerCase().includes(filtro) ? '' : 'none';
   });
+}
 </script>
 {% endblock %}
