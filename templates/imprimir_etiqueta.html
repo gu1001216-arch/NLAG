@@ -5,25 +5,11 @@
   <span class="text-muted small">{{ agora }}</span>
 </div>
 
-<!-- AVISO -->
-<div class="alert alert-info alert-dismissible fade show" role="alert">
-  <i class="bi bi-pc-display-horizontal"></i>
-  <strong>Requisito:</strong> O arquivo <strong>NLAG_Impressora.exe</strong>
-  precisa estar rodando no PC conectado à rede.
-  Impressora: <code>DEC-Zebra003 — 10.12.11.119</code>
-  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-</div>
-
 <div class="card mb-4">
-  <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-    <span><i class="bi bi-printer"></i> Dados para Impressão</span>
-    <span id="badge-servidor" class="badge bg-secondary">
-      <i class="bi bi-circle"></i> Aguardando...
-    </span>
+  <div class="card-header bg-primary text-white">
+    <i class="bi bi-printer"></i> Dados para Impressão
   </div>
   <div class="card-body">
-
-    <div id="div-status" class="d-none mb-3"></div>
 
     <div class="row g-3">
 
@@ -66,73 +52,79 @@
                placeholder="UN" readonly>
       </div>
 
-      <!-- SERVIDOR LOCAL -->
-      <div class="col-md-7">
-        <label class="form-label fw-bold">
-          <i class="bi bi-hdd-network"></i> Endereço do Servidor Local (NLAG_Impressora.exe)
-        </label>
-        <div class="input-group">
-          <input type="text" id="campo-servidor"
-                 class="form-control form-control-lg"
-                 placeholder="http://10.12.11.XX:5001">
-          <button type="button" class="btn btn-outline-secondary"
-                  onclick="testarServidor()">
-            <i class="bi bi-wifi"></i> Testar
-          </button>
-        </div>
-        <div class="form-text">
-          IP do PC onde o exe roda. Ex: <code>http://10.12.11.50:5001</code>. Salvo automaticamente.
-        </div>
-      </div>
-
       <!-- QTD ETIQUETAS -->
-      <div class="col-md-2">
+      <div class="col-md-3">
         <label class="form-label fw-bold">
-          <i class="bi bi-layers"></i> Qtd Etiquetas
+          <i class="bi bi-layers"></i> Quantidade de Etiquetas
         </label>
         <input type="number" id="campo-copias"
                class="form-control form-control-lg"
-               value="1" min="1" max="999">
+               value="1" min="1" max="99">
+        <div class="form-text">Cada clique abre uma janela por cópia.</div>
       </div>
 
       <!-- BOTÃO IMPRIMIR -->
-      <div class="col-md-3 d-flex align-items-end">
+      <div class="col-md-4 d-flex align-items-end">
         <button type="button" id="btn-imprimir"
                 class="btn btn-primary btn-lg w-100"
-                onclick="imprimirEtiqueta()">
+                onclick="imprimirEtiqueta()"
+                {% if not material %}disabled{% endif %}>
           <i class="bi bi-printer-fill"></i> Imprimir na Zebra
         </button>
       </div>
 
+      <!-- STATUS -->
+      <div class="col-12">
+        <div id="div-status" class="d-none"></div>
+      </div>
+
     </div>
 
-    <!-- PREVIEW -->
+    <!-- PREVIEW DA ETIQUETA -->
     {% if material and barcode_img %}
     <hr class="mt-4">
-    <div class="row align-items-center">
-      <div class="col-md-4">
-        <div class="alert alert-secondary mb-0">
-          <div><strong>{{ material.codigo }}</strong></div>
-          <div style="font-size:0.88rem;">{{ material.descricao }}</div>
-          <span class="badge bg-dark mt-1">{{ material.unidade }}</span>
+    <p class="text-muted small mb-2"><i class="bi bi-eye"></i> Preview (100mm × 50mm):</p>
+
+    <!-- Preview em escala real visual -->
+    <div style="
+      width: 378px; height: 189px;
+      border: 2px solid #333;
+      background: #fff;
+      padding: 8px 11px;
+      font-family: 'Arial Narrow', Arial, sans-serif;
+      display: flex; flex-direction: column;
+      justify-content: space-between;
+      box-shadow: 2px 2px 8px rgba(0,0,0,0.15);
+    ">
+      <!-- header -->
+      <div style="display:flex;justify-content:space-between;align-items:center;
+                  border-bottom:1.5px solid #000;padding-bottom:4px;">
+        <span style="font-size:9pt;font-weight:900;letter-spacing:0.5px;">NLAG — DEPÓSITO</span>
+        <span style="font-size:7pt;color:#555;">{{ agora }}</span>
+      </div>
+      <!-- corpo -->
+      <div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:3px;padding:4px 0;">
+        <div style="display:flex;align-items:baseline;gap:6px;">
+          <span style="font-size:7pt;color:#555;">Cód:</span>
+          <span style="font-size:16pt;font-weight:900;letter-spacing:1px;">{{ material.codigo }}</span>
+          <span style="font-size:7pt;background:#1e2a3a;color:#fff;
+                       padding:1px 5px;border-radius:3px;margin-left:auto;">{{ material.unidade }}</span>
+        </div>
+        <div style="font-size:8.5pt;font-weight:700;text-transform:uppercase;line-height:1.25;">
+          {{ material.descricao[:60] }}
         </div>
       </div>
-      <div class="col-md-8 text-center">
-        <p class="text-muted small mb-2"><i class="bi bi-eye"></i> Preview da etiqueta:</p>
-        <div style="width:380px;height:175px;border:2px dashed #aaa;
-                    display:inline-block;padding:10px;background:#fff;
-                    text-align:left;font-family:monospace;font-size:11px;">
-          <div style="font-weight:bold;border-bottom:1px solid #000;
-                      padding-bottom:3px;margin-bottom:5px;font-size:12px;">
-            NLAG - DEPOSITO
-          </div>
-          <div>Cod: <strong>{{ material.codigo }}</strong></div>
-          <div>{{ material.descricao[:50] }}</div>
-          <div style="color:#666;font-size:10px;">Data: {{ agora }}</div>
-          <img src="data:image/png;base64,{{ barcode_img }}"
-               style="max-width:100%;height:60px;object-fit:contain;margin-top:6px;">
-        </div>
+      <!-- barcode -->
+      <div style="border-top:1px solid #ddd;padding-top:3px;text-align:center;">
+        <img src="data:image/png;base64,{{ barcode_img }}"
+             style="height:38px;max-width:100%;object-fit:contain;">
       </div>
+    </div>
+
+    <div class="mt-2 text-muted small">
+      <i class="bi bi-info-circle"></i>
+      Certifique-se de que a impressora <strong>DEC-Zebra003</strong> está selecionada
+      e o tamanho do papel está em <strong>100mm × 50mm</strong>.
     </div>
     {% endif %}
 
@@ -141,26 +133,16 @@
 
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script>
-const LS_KEY = 'nlag_servidor_impressora';
 let leitorAtivo   = null;
 let materialAtual = {{ ('{"codigo":"' + material.codigo|string + '","descricao":"' + material.descricao|string + '","unidade":"' + material.unidade|string + '"}') | safe if material else 'null' }};
 
 window.addEventListener('load', function () {
-  const srv = localStorage.getItem(LS_KEY) || '';
-  document.getElementById('campo-servidor').value = srv;
-  if (srv) testarServidor(true);
-
   const c = document.getElementById('campo-codigo').value.trim();
   if (c && !materialAtual) buscarMaterial(c);
   if (materialAtual) {
     document.getElementById('info-descricao').value = materialAtual.descricao || '';
     document.getElementById('info-unidade').value   = materialAtual.unidade   || '';
   }
-});
-
-document.getElementById('campo-servidor').addEventListener('blur', function () {
-  const v = this.value.trim();
-  if (v) { localStorage.setItem(LS_KEY, v); testarServidor(true); }
 });
 
 function buscarMaterial(codigo) {
@@ -172,11 +154,14 @@ function buscarMaterial(codigo) {
         materialAtual = d;
         document.getElementById('info-descricao').value = d.descricao;
         document.getElementById('info-unidade').value   = d.unidade;
+        document.getElementById('btn-imprimir').disabled = false;
+        // Recarrega para mostrar preview com barcode
         window.location.href = '/imprimir_etiqueta?codigo=' + encodeURIComponent(d.codigo);
       } else {
         materialAtual = null;
         document.getElementById('info-descricao').value = '⚠️ Código não encontrado';
         document.getElementById('info-unidade').value   = '';
+        document.getElementById('btn-imprimir').disabled = true;
       }
     }).catch(() => {});
 }
@@ -185,94 +170,37 @@ document.getElementById('campo-codigo').addEventListener('change', function () {
   buscarMaterial(this.value.trim());
 });
 
-function testarServidor(silencioso = false) {
-  const srv = document.getElementById('campo-servidor').value.trim();
-  if (!srv) { if (!silencioso) alert('Informe o endereço do servidor!'); return; }
-  setBadge('warning', '⏳ Verificando...');
-  fetch('/api/testar_servidor', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ servidor: srv })
-  })
-  .then(r => r.json())
-  .then(d => {
-    if (d.ok) {
-      setBadge('success', '🟢 Impressora Online');
-      if (!silencioso) mostrarStatus('success', '✅ ' + d.msg);
-    } else {
-      setBadge('danger', '🔴 Offline');
-      if (!silencioso) mostrarStatus('danger', '❌ ' + d.msg);
-    }
-  }).catch(() => { setBadge('danger', '🔴 Erro'); });
-}
-
-function gerarZPL(codigo, descricao, dataHora, copias) {
-  const desc1 = descricao.substring(0, 35);
-  const desc2 = descricao.substring(35, 70).trim();
-  let z = `^XA\n^PQ${copias},0,1,Y\n`;
-  z += `^FO20,15^A0N,28,28^FDNLAG - DEPOSITO^FS\n`;
-  z += `^FO20,48^GB700,2,2^FS\n`;
-  z += `^FO20,60^A0N,24,24^FDCod: ${codigo}^FS\n`;
-  if (desc2) {
-    z += `^FO20,90^A0N,22,22^FD${desc1}^FS\n`;
-    z += `^FO20,116^A0N,22,22^FD${desc2}^FS\n`;
-    z += `^FO20,148^A0N,18,18^FDData: ${dataHora}^FS\n`;
-    z += `^FO20,172^GB700,2,2^FS\n`;
-    z += `^FO60,185^BCN,95,Y,N,N^FD${codigo}^FS\n`;
-  } else {
-    z += `^FO20,90^A0N,22,22^FD${desc1}^FS\n`;
-    z += `^FO20,120^A0N,18,18^FDData: ${dataHora}^FS\n`;
-    z += `^FO20,148^GB700,2,2^FS\n`;
-    z += `^FO60,162^BCN,110,Y,N,N^FD${codigo}^FS\n`;
-  }
-  z += `^XZ`;
-  return z;
-}
-
 function imprimirEtiqueta() {
-  const codigo   = document.getElementById('campo-codigo').value.trim().toUpperCase();
-  const servidor = document.getElementById('campo-servidor').value.trim();
-  const copias   = parseInt(document.getElementById('campo-copias').value) || 1;
+  if (!materialAtual) { alert('Selecione um material primeiro!'); return; }
 
-  if (!codigo)        { alert('Informe o código do material!'); return; }
-  if (!materialAtual) { alert('Material não encontrado! Verifique o código.'); return; }
-  if (!servidor)      { alert('Informe o endereço do servidor local!\nEx: http://10.12.11.50:5001'); return; }
+  const copias = parseInt(document.getElementById('campo-copias').value) || 1;
+  const codigo = materialAtual.codigo;
 
-  const agora   = new Date();
-  const dataStr = String(agora.getDate()).padStart(2,'0') + '/' +
-                  String(agora.getMonth()+1).padStart(2,'0') + '/' +
-                  agora.getFullYear() + ' ' +
-                  String(agora.getHours()).padStart(2,'0') + ':' +
-                  String(agora.getMinutes()).padStart(2,'0');
+  mostrarStatus('info', `⏳ Abrindo ${copias} etiqueta(s) para impressão...`);
 
-  const zpl = gerarZPL(codigo, materialAtual.descricao, dataStr, copias);
-  const btn = document.getElementById('btn-imprimir');
+  // Abre uma aba por cópia — cada aba imprime automaticamente e fecha
+  for (let i = 0; i < copias; i++) {
+    setTimeout(function () {
+      const win = window.open(
+        '/print/' + encodeURIComponent(codigo),
+        '_blank',
+        'width=400,height=220,toolbar=0,menubar=0,location=0'
+      );
+      if (!win) {
+        mostrarStatus('danger',
+          '❌ Pop-up bloqueado! Clique no ícone de pop-up na barra de endereço ' +
+          'e permita pop-ups para este site.'
+        );
+      }
+    }, i * 600); // intervalo de 600ms entre cada cópia
+  }
 
-  btn.disabled  = true;
-  btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Enviando...';
-  mostrarStatus('info', `⏳ Enviando ${copias} etiqueta(s) para DEC-Zebra003...`);
-
-  fetch('/api/imprimir_zpl', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ zpl: zpl, servidor: servidor })
-  })
-  .then(r => r.json())
-  .then(d => {
-    if (d.ok) {
-      mostrarStatus('success', '🖨️ ' + d.msg);
-      setBadge('success', '🟢 Impressora Online');
-      localStorage.setItem(LS_KEY, servidor);
-    } else {
-      mostrarStatus('danger', d.msg);
-      setBadge('danger', '🔴 Erro');
-    }
-  })
-  .catch(e => mostrarStatus('danger', '❌ Erro de comunicação: ' + e))
-  .finally(() => {
-    btn.disabled  = false;
-    btn.innerHTML = '<i class="bi bi-printer-fill"></i> Imprimir na Zebra';
-  });
+  setTimeout(function () {
+    mostrarStatus('success',
+      `✅ ${copias} etiqueta(s) enviada(s) para impressão! ` +
+      'Selecione <strong>DEC-Zebra003</strong> no diálogo e confirme.'
+    );
+  }, copias * 600 + 200);
 }
 
 function mostrarStatus(tipo, msg) {
@@ -280,15 +208,9 @@ function mostrarStatus(tipo, msg) {
   div.className = `alert alert-${tipo}`;
   div.innerHTML = msg;
   div.classList.remove('d-none');
-  div.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
-function setBadge(tipo, txt) {
-  const b = document.getElementById('badge-servidor');
-  b.className = `badge bg-${tipo}`;
-  b.innerHTML = txt;
-}
-
+// ── Câmera ──
 function abrirCamera() {
   document.getElementById('camera-container').classList.remove('d-none');
   leitorAtivo = new Html5Qrcode('leitor-avulso');
