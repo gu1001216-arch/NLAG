@@ -1,187 +1,182 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8">
-<title>Etiqueta {{ material.codigo }}</title>
-<style>
-  /* ── Reset total ── */
-  *, *::before, *::after {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-  }
+  <meta charset="UTF-8">
+  <title>Etiqueta {{ material.codigo }}</title>
+  <style>
 
-  /* ── Página 100 × 50 mm, paisagem, sem margens ── */
-  @page {
-    size: 100mm 50mm landscape;
-    margin: 0mm;
-  }
+    /* Diz ao sistema: página retrato 50×100mm (como a Zebra enxerga) */
+    @page {
+      size: 50mm 100mm;
+      margin: 0;
+    }
 
-  html, body {
-    width:  100mm;
-    height: 50mm;
-    overflow: hidden;
-    background: #fff;
-  }
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
 
-  /* ── Container principal: centraliza tudo ── */
-  .etiqueta {
-    width:  100mm;
-    height: 50mm;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 2mm 3mm;
-    font-family: Arial, Helvetica, sans-serif;
-    color: #000;
-    background: #fff;
-    text-align: center;
-  }
+    html, body {
+      width:  50mm;
+      height: 100mm;
+      overflow: hidden;
+      background: #fff;
+    }
 
-  /* ── Cabeçalho: empresa + data ── */
-  .header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    width: 100%;
-    margin-bottom: 1mm;
-  }
-  .empresa {
-    font-size: 7.5pt;
-    font-weight: 700;
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
-  }
-  .data {
-    font-size: 6pt;
-    color: #333;
-  }
+    /*
+      O truque: criamos o conteúdo em 100×50mm (paisagem)
+      e rotacionamos -90° para caber na página 50×100mm (retrato).
+      Resultado final na impressora: correto e legível.
+    */
+    .etiqueta {
+      width:  100mm;
+      height: 50mm;
+      padding: 2.5mm 3mm 2mm 3mm;
+      font-family: Arial, Helvetica, sans-serif;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      background: #fff;
 
-  /* ── Código + unidade ── */
-  .linha-codigo {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-    width: 100%;
-    margin-bottom: 1mm;
-  }
-  .valor-codigo {
-    font-size: 16pt;
-    font-weight: 900;
-    letter-spacing: 1px;
-    line-height: 1;
-  }
-  .badge-unidade {
-    font-size: 7pt;
-    font-weight: 700;
-    background: #222;
-    color: #fff;
-    border-radius: 3px;
-    padding: 1px 4px;
-  }
+      /* Posiciona e gira */
+      position: absolute;
+      top:  50mm;
+      left: 0mm;
+      transform: rotate(-90deg);
+      transform-origin: top left;
+    }
 
-  /* ── Descrição ── */
-  .descricao {
-    font-size: 7pt;
-    font-weight: 600;
-    text-transform: uppercase;
-    width: 100%;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    margin-bottom: 1.5mm;
-    text-align: center;
-  }
+    /* ── CABEÇALHO ── */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 0.5mm solid #000;
+      padding-bottom: 1mm;
+    }
+    .empresa {
+      font-size: 9pt;
+      font-weight: 900;
+      text-transform: uppercase;
+      color: #000;
+    }
+    .data {
+      font-size: 7pt;
+      color: #000;
+    }
 
-  /* ── Área do código de barras ── */
-  .barcode-area {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-  }
-  .barcode-area img {
-    display: block;
-    width:  90mm;
-    height: 11mm;
-    /* mantém barras nítidas sem interpolação */
-    image-rendering: -webkit-optimize-contrast;
-    image-rendering: crisp-edges;
-    image-rendering: pixelated;
-    object-fit: fill;
-  }
-  .barcode-texto {
-    font-size: 7pt;
-    font-family: 'Courier New', monospace;
-    font-weight: 700;
-    letter-spacing: 2px;
-    margin-top: 0.5mm;
-  }
+    /* ── CÓDIGO + UNIDADE ── */
+    .linha-codigo {
+      display: flex;
+      align-items: center;
+      gap: 2mm;
+    }
+    .label-cod {
+      font-size: 7pt;
+      color: #444;
+    }
+    .valor-codigo {
+      font-size: 18pt;
+      font-weight: 900;
+      color: #000;
+      letter-spacing: 1.5px;
+      line-height: 1;
+    }
+    .badge-un {
+      margin-left: auto;
+      font-size: 7pt;
+      font-weight: 900;
+      background: #000;
+      color: #fff;
+      padding: 1mm 2.5mm;
+      border-radius: 2px;
+    }
 
-  /* ── Ocultar tudo ao imprimir exceto a etiqueta ── */
-  @media print {
-    body { background: #fff; }
-    .no-print { display: none !important; }
-  }
-</style>
+    /* ── DESCRIÇÃO ── */
+    .descricao {
+      font-size: 8pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: #000;
+      line-height: 1.25;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
+
+    /* ── CÓDIGO DE BARRAS GRANDE ── */
+    .barcode-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border-top: 0.3mm solid #999;
+      padding-top: 1mm;
+      flex: 1;
+    }
+    .barcode-wrap img {
+      width:  94mm;
+      height: 13mm;
+      object-fit: fill;
+      display: block;
+    }
+    .barcode-texto {
+      font-size: 7pt;
+      font-family: 'Courier New', monospace;
+      font-weight: 700;
+      letter-spacing: 3px;
+      color: #000;
+      margin-top: 0.5mm;
+    }
+
+  </style>
 </head>
 <body>
-
 <div class="etiqueta">
 
-  <!-- Cabeçalho -->
   <div class="header">
-    <span class="empresa">NLAG — Depósito</span>
+    <span class="empresa">NLAG — DEPÓSITO</span>
     <span class="data">{{ agora }}</span>
   </div>
 
-  <!-- Código + unidade -->
   <div class="linha-codigo">
+    <span class="label-cod">Cód:</span>
     <span class="valor-codigo">{{ material.codigo }}</span>
-    <span class="badge-unidade">{{ material.unidade }}</span>
+    <span class="badge-un">{{ material.unidade }}</span>
   </div>
 
-  <!-- Descrição -->
-  <div class="descricao" title="{{ material.descricao }}">
-    {{ material.descricao }}
-  </div>
+  <div class="descricao">{{ material.descricao }}</div>
 
-  <!-- Código de barras -->
-  <div class="barcode-area">
-    {% if barcode_img %}
-      <img id="barcode-img"
-           src="data:image/png;base64,{{ barcode_img }}"
-           alt="Código de barras {{ material.codigo }}">
-    {% endif %}
+  {% if barcode_img %}
+  <div class="barcode-wrap">
+    <img src="data:image/png;base64,{{ barcode_img }}"
+         alt="{{ material.codigo }}">
     <span class="barcode-texto">{{ material.codigo }}</span>
   </div>
+  {% endif %}
 
 </div>
 
 <script>
-  (function () {
-    function doPrint() {
+window.addEventListener('load', function () {
+  var img = document.querySelector('.barcode-wrap img');
+  function doPrint() {
+    setTimeout(function () {
       window.print();
-      // fecha a aba após impressão (funciona na maioria dos browsers)
-      setTimeout(function () { window.close(); }, 800);
-    }
-
-    var img = document.getElementById('barcode-img');
-    if (img) {
-      if (img.complete) {
-        setTimeout(doPrint, 400);
-      } else {
-        img.addEventListener('load',  function () { setTimeout(doPrint, 400); });
-        img.addEventListener('error', function () { setTimeout(doPrint, 400); });
-      }
-    } else {
-      setTimeout(doPrint, 400);
-    }
-  })();
+      window.onafterprint = function () { window.close(); };
+    }, 600);
+  }
+  if (img) {
+    if (img.complete && img.naturalWidth > 0) { doPrint(); }
+    else { img.onload = doPrint; img.onerror = doPrint; }
+  } else {
+    doPrint();
+  }
+});
 </script>
-
 </body>
 </html>
