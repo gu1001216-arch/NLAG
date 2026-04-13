@@ -4,8 +4,6 @@
   <h4 class="mb-0"><i class="bi bi-box-arrow-in-down text-success"></i> Registrar Entrada</h4>
   <span class="text-muted small">{{ agora }}</span>
 </div>
-
-<!-- FORMULÁRIO DE ENTRADA -->
 <div class="card mb-4">
   <div class="card-header bg-success text-white">
     <i class="bi bi-plus-circle"></i> Dados da Entrada
@@ -20,7 +18,7 @@
             <input type="text" name="codigo" id="campo-codigo"
                    class="form-control form-control-lg"
                    placeholder="Digite ou bipie o código"
-                   value="{{ material.codigo if material else '' }}"
+                   value="{{ material.codigo if material else request.args.get('codigo', '') }}"
                    autocomplete="off" autofocus required>
             <button type="button" class="btn btn-outline-secondary"
                     onclick="abrirCamera('entrada')" title="Usar câmera">
@@ -36,10 +34,10 @@
           </div>
         </div>
         <div class="col-md-5">
-          <label class="form-label fw-bold">Material</label>
+          <label class="form-label fw-bold">Descrição</label>
           <input type="text" id="info-descricao" class="form-control form-control-lg"
                  value="{{ material.descricao if material else '' }}"
-                 placeholder="Descrição carregada automaticamente" readonly>
+                 placeholder="Carregada automaticamente" readonly>
         </div>
         <div class="col-md-3">
           <label class="form-label fw-bold">Unidade</label>
@@ -48,7 +46,7 @@
                  placeholder="UN" readonly>
         </div>
         <div class="col-md-4">
-          <label class="form-label fw-bold">Quantidade Entrada</label>
+          <label class="form-label fw-bold">Quantidade</label>
           <input type="number" name="quantidade" id="campo-quantidade"
                  class="form-control form-control-lg"
                  value="{{ quantidade or '' }}"
@@ -69,29 +67,24 @@
   </div>
 </div>
 
-<!-- PAINEL DE IMPRESSÃO ZEBRA -->
 {% if material %}
 <div class="card mb-4 border-primary">
   <div class="card-header bg-primary text-white">
     <i class="bi bi-printer"></i> Imprimir Etiqueta Zebra
-    <span class="badge bg-light text-primary ms-2">10cm × 5cm</span>
+    <span class="badge bg-light text-primary ms-2">Configuração da impressora</span>
   </div>
   <div class="card-body">
-
     {% if msg_zebra %}
     <div class="alert alert-{{ msg_zebra[0] }} alert-dismissible fade show">
       {{ msg_zebra[1] }}
       <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
     {% endif %}
-
     <form method="POST" id="form-zebra">
       <input type="hidden" name="acao" value="imprimir_zebra">
       <input type="hidden" name="codigo" value="{{ material.codigo }}">
-      <input type="hidden" name="quantidade" value="{{ quantidade or 1 }}">
-
       <div class="row g-3 align-items-end">
-        <div class="col-md-4">
+        <div class="col-md-5">
           <label class="form-label fw-bold">
             <i class="bi bi-wifi"></i> IP da Impressora Zebra
           </label>
@@ -100,26 +93,22 @@
                  value="{{ ip_zebra_salvo }}"
                  placeholder="Ex: 192.168.1.200" required>
           <div class="form-text">
-            <i class="bi bi-info-circle"></i>
-            IP salvo automaticamente para próxima vez.
+            <i class="bi bi-info-circle"></i> IP salvo automaticamente.
           </div>
         </div>
         <div class="col-md-3">
           <label class="form-label fw-bold">
-            <i class="bi bi-layers"></i> Quantidade de Etiquetas
+            <i class="bi bi-layers"></i> Qtd de Etiquetas
           </label>
           <input type="number" name="copias" id="copias"
                  class="form-control form-control-lg"
                  value="1" min="1" max="999" required>
         </div>
-        <div class="col-md-5">
-          <label class="form-label fw-bold">
-            <i class="bi bi-tag"></i> Preview do Material
-          </label>
+        <div class="col-md-4">
+          <label class="form-label fw-bold">Material</label>
           <div class="border rounded p-2 bg-light" style="font-size:0.85rem;">
             <strong>{{ material.codigo }}</strong> — {{ material.descricao }}<br>
             <span class="badge bg-secondary">{{ material.unidade }}</span>
-            <span class="ms-2 text-muted">Qtd entrada: {{ quantidade or 1 }}</span>
           </div>
         </div>
         <div class="col-12">
@@ -128,30 +117,27 @@
             <i class="bi bi-printer-fill"></i> Enviar para Zebra
           </button>
           <a href="/imprimir_etiqueta" class="btn btn-outline-primary btn-lg ms-2">
-            <i class="bi bi-tag"></i> Imprimir Etiqueta Avulsa
+            <i class="bi bi-tag"></i> Etiqueta Avulsa
           </a>
         </div>
       </div>
     </form>
-
-    <!-- Preview visual da etiqueta -->
     {% if barcode_img %}
     <hr>
-    <div class="text-center mt-3">
-      <p class="text-muted small mb-2">Preview da etiqueta (10cm × 5cm):</p>
-      <div style="width:378px; height:189px; border:2px dashed #ccc;
-                  display:inline-block; padding:10px; background:#fff;
-                  text-align:left; font-family:monospace; position:relative;">
-        <div style="font-size:11px; font-weight:bold; border-bottom:1px solid #000; padding-bottom:3px; margin-bottom:4px;">
+    <div class="text-center mt-2">
+      <p class="text-muted small mb-2"><i class="bi bi-eye"></i> Preview da etiqueta:</p>
+      <div style="width:378px;height:170px;border:2px dashed #ccc;
+                  display:inline-block;padding:10px;background:#fff;
+                  text-align:left;font-family:monospace;font-size:11px;">
+        <div style="font-weight:bold;border-bottom:1px solid #000;padding-bottom:3px;margin-bottom:5px;">
           NLAG - DEPOSITO
         </div>
-        <div style="font-size:10px;">Cod: <strong>{{ material.codigo }}</strong></div>
-        <div style="font-size:10px;">{{ material.descricao[:50] }}</div>
-        <div style="font-size:10px;">Unid: {{ material.unidade }} &nbsp; Qtd: {{ quantidade or 1 }}</div>
-        <div style="font-size:9px; color:#555;">Data: {{ agora }}</div>
-        <div style="margin-top:5px;">
+        <div>Cod: <strong>{{ material.codigo }}</strong></div>
+        <div>{{ material.descricao[:50] }}</div>
+        <div style="color:#555;font-size:10px;">Data: {{ agora }}</div>
+        <div style="margin-top:6px;">
           <img src="data:image/png;base64,{{ barcode_img }}"
-               style="max-width:100%; height:55px; object-fit:contain;">
+               style="max-width:100%;height:58px;object-fit:contain;">
         </div>
       </div>
     </div>
@@ -160,11 +146,9 @@
 </div>
 {% endif %}
 
-<!-- SCRIPT CÂMERA E BUSCA -->
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script>
 let leitorAtivo = null;
-
 function buscarMaterial(codigo) {
   if (!codigo) return;
   fetch('/api/material/' + encodeURIComponent(codigo.trim().toUpperCase()))
@@ -180,14 +164,16 @@ function buscarMaterial(codigo) {
       }
     }).catch(() => {});
 }
-
 document.getElementById('campo-codigo').addEventListener('change', function() {
   buscarMaterial(this.value);
 });
-
+// Pré-carrega se veio da URL
+window.addEventListener('load', function() {
+  const c = document.getElementById('campo-codigo').value;
+  if (c) buscarMaterial(c);
+});
 function abrirCamera(tela) {
-  const container = document.getElementById('camera-container-' + tela);
-  container.classList.remove('d-none');
+  document.getElementById('camera-container-' + tela).classList.remove('d-none');
   leitorAtivo = new Html5Qrcode('leitor-' + tela);
   leitorAtivo.start(
     { facingMode: 'environment' },
@@ -196,25 +182,18 @@ function abrirCamera(tela) {
       document.getElementById('campo-codigo').value = codigo.toUpperCase();
       fecharCamera(tela);
       buscarMaterial(codigo);
-    },
-    () => {}
-  ).catch(e => alert('Erro ao acessar câmera: ' + e));
+    }, () => {}
+  ).catch(e => alert('Erro câmera: ' + e));
 }
-
 function fecharCamera(tela) {
-  if (leitorAtivo) {
-    leitorAtivo.stop().catch(() => {});
-    leitorAtivo = null;
-  }
+  if (leitorAtivo) { leitorAtivo.stop().catch(() => {}); leitorAtivo = null; }
   document.getElementById('camera-container-' + tela).classList.add('d-none');
 }
-
 function confirmarImpressao() {
   const ip     = document.getElementById('ip_zebra').value.trim();
   const copias = document.getElementById('copias').value;
   if (!ip) { alert('Informe o IP da impressora!'); return false; }
-  if (parseInt(copias) < 1) { alert('Quantidade mínima é 1!'); return false; }
-  return confirm(`Enviar ${copias} etiqueta(s) para a impressora ${ip}?`);
+  return confirm(`Enviar ${copias} etiqueta(s) para ${ip}?`);
 }
 </script>
 {% endblock %}
