@@ -31,10 +31,7 @@
       left: 0;
       width: 100mm;
       height: 50mm;
-
-      /* desloca conteúdo para a direita */
       padding: 2.5mm 3mm 2mm 8mm;
-
       font-family: Arial, Helvetica, sans-serif;
       display: flex;
       flex-direction: column;
@@ -59,8 +56,9 @@
       color: #000;
     }
     .data {
-      font-size: 7pt;
-      color: #333;
+      font-size: 9pt; /* AUMENTADO: era 7pt */
+      font-weight: 700;
+      color: #000;
     }
 
     /* LINHA CÓDIGO + UNIDADE */
@@ -71,8 +69,9 @@
       flex-shrink: 0;
     }
     .label-cod {
-      font-size: 7pt;
-      color: #555;
+      font-size: 9pt; /* AUMENTADO: era 7pt */
+      font-weight: 700;
+      color: #333;
     }
     .valor-codigo {
       font-size: 17pt;
@@ -106,7 +105,7 @@
       -webkit-box-orient: vertical;
     }
 
-    /* CÓDIGO DE BARRAS — menor */
+    /* CÓDIGO DE BARRAS — maior */
     .barcode-wrap {
       flex: 1;
       display: flex;
@@ -117,20 +116,13 @@
       padding-top: 1mm;
     }
     .barcode-wrap img {
-      height: 10mm;       /* reduzido de 13mm → 10mm */
+      height: 14mm; /* AUMENTADO: era 10mm */
       width: auto;
       max-width: 86mm;
       display: block;
       image-rendering: pixelated;
     }
-    .barcode-texto {
-      font-size: 6pt;
-      font-family: 'Courier New', monospace;
-      font-weight: 700;
-      letter-spacing: 3px;
-      color: #000;
-      margin-top: 0.5mm;
-    }
+    /* barcode-texto REMOVIDO do HTML e do CSS */
 
   </style>
 </head>
@@ -154,7 +146,7 @@
   <div class="barcode-wrap">
     <img src="data:image/png;base64,{{ barcode_img }}"
          alt="{{ material.codigo }}">
-    <span class="barcode-texto">{{ material.codigo }}</span>
+    <!-- numeração abaixo do barcode REMOVIDA -->
   </div>
   {% endif %}
 
