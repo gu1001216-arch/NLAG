@@ -1,112 +1,116 @@
+import os
+import io
+import base64
+import csv
+import urllib.request
+import urllib.error
+import json
+from datetime import datetime
 from flask import (Flask, render_template, request, redirect,
-                   url_for, jsonify, Response, flash, session)
+                   url_for, session, flash, jsonify,
+                   Response, stream_with_context)
 import psycopg2
 import psycopg2.extras
-from datetime import datetime
-import barcode
+import barcode as python_barcode
 from barcode.writer import ImageWriter
-import io, base64, csv, os
-import urllib.request, urllib.error, json as json_lib
+from PIL import Image, ImageChops
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'nlag_deposito_2026')
+DATABASE_URL = os.environ.get('DATABASE_URL', '')
 
-DATABASE_URL = os.environ.get('DATABASE_URL')
+APP_USUARIO = os.environ.get('APP_USUARIO', 'nlag')
+APP_SENHA   = os.environ.get('APP_SENHA',   'deposito2026')
 
-# ─────────────────────────────────────────
-# UTILITÁRIOS DB
-# ─────────────────────────────────────────
+# ──────────────────────────────────────────────
+# DB helpers
+# ──────────────────────────────────────────────
 def get_db():
-    conn = psycopg2.connect(DATABASE_URL)
-    return conn
+    return psycopg2.connect(DATABASE_URL)
 
-def query(sql, params=(), fetchone=False, fetchall=False, commit=False):
-    conn   = get_db()
-    cur    = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    result = None
+def query(sql, params=None, fetchone=False, fetchall=False, commit=False):
+    conn = get_db()
     try:
-        cur.execute(sql, params)
-        if fetchone:
-            result = cur.fetchone()
-        elif fetchall:
-            result = cur.fetchall()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute(sql, params or ())
         if commit:
             conn.commit()
+            return None
+        if fetchone:
+            return cur.fetchone()
+        if fetchall:
+            return cur.fetchall()
     except Exception as e:
-        conn.rollback()
+        if commit:
+            conn.rollback()
         raise e
     finally:
         conn.close()
-    return result
 
+# ──────────────────────────────────────────────
+# Barcode – 300 DPI, quiet_zone=0, auto-crop
+# ──────────────────────────────────────────────
 def gerar_barcode_base64(codigo):
     try:
-        barcode_class = barcode.get_barcode_class('code128')
-        bc     = barcode_class(str(codigo), writer=ImageWriter())
-        buffer = io.BytesIO()
-        bc.write(buffer)
-        return base64.b64encode(buffer.getvalue()).decode('utf-8')
-    except Exception:
+        writer_options = {
+            'module_width':  0.18,
+            'module_height': 12.0,
+            'font_size':     7,
+            'text_distance': 2.0,
+            'quiet_zone':    1.0,
+            'dpi':           300,
+            'write_text':    False,   # text rendered separately in HTML
+        }
+        code128 = python_barcode.get('code128', str(codigo),
+                                     writer=ImageWriter())
+        buf = io.BytesIO()
+        code128.write(buf, options=writer_options)
+        buf.seek(0)
+
+        img = Image.open(buf).convert('RGB')
+        # auto-crop white borders
+        bg   = Image.new('RGB', img.size, (255, 255, 255))
+        diff = ImageChops.difference(img, bg)
+        bbox = diff.getbbox()
+        if bbox:
+            img = img.crop(bbox)
+
+        out = io.BytesIO()
+        img.save(out, format='PNG', optimize=True)
+        return base64.b64encode(out.getvalue()).decode()
+    except Exception as e:
+        app.logger.error(f'Barcode error: {e}')
         return None
 
 def calcular_saldo(codigo):
-    row = query('''
-        SELECT
-            COALESCE(SUM(CASE WHEN tipo='ENTRADA' THEN quantidade ELSE 0 END), 0)
-          - COALESCE(SUM(CASE WHEN tipo='SAIDA'   THEN quantidade ELSE 0 END), 0)
-          AS saldo
-        FROM movimentacoes WHERE codigo = %s
-    ''', (codigo,), fetchone=True)
+    row = query(
+        """SELECT
+             COALESCE(SUM(CASE WHEN tipo='ENTRADA' THEN quantidade ELSE 0 END),0)
+           - COALESCE(SUM(CASE WHEN tipo='SAIDA'   THEN quantidade ELSE 0 END),0)
+             AS saldo
+           FROM movimentacoes WHERE codigo=%s""",
+        (codigo,), fetchone=True
+    )
     return float(row['saldo']) if row else 0.0
 
-# ─────────────────────────────────────────
-# ZPL — respeita config atual da impressora
-# ─────────────────────────────────────────
-def gerar_zpl(codigo, descricao, data_hora, copias=1):
-    desc1 = descricao[:35]
-    desc2 = descricao[35:70].strip() if len(descricao) > 35 else ''
-    zpl   = "^XA\n"
-    zpl  += f"^PQ{copias},0,1,Y\n"
-    zpl  += "^FO20,15^A0N,28,28^FDNLAG - DEPOSITO^FS\n"
-    zpl  += "^FO20,48^GB700,2,2^FS\n"
-    zpl  += f"^FO20,60^A0N,24,24^FDCod: {codigo}^FS\n"
-    if desc2:
-        zpl += f"^FO20,90^A0N,22,22^FD{desc1}^FS\n"
-        zpl += f"^FO20,116^A0N,22,22^FD{desc2}^FS\n"
-        zpl += f"^FO20,148^A0N,18,18^FDData: {data_hora}^FS\n"
-        zpl += "^FO20,172^GB700,2,2^FS\n"
-        zpl += f"^FO60,185^BCN,95,Y,N,N^FD{codigo}^FS\n"
-    else:
-        zpl += f"^FO20,90^A0N,22,22^FD{desc1}^FS\n"
-        zpl += f"^FO20,120^A0N,18,18^FDData: {data_hora}^FS\n"
-        zpl += "^FO20,148^GB700,2,2^FS\n"
-        zpl += f"^FO60,162^BCN,110,Y,N,N^FD{codigo}^FS\n"
-    zpl += "^XZ"
-    return zpl
-
-# ─────────────────────────────────────────
-# AUTENTICAÇÃO
-# ─────────────────────────────────────────
-USUARIO = os.environ.get('APP_USUARIO', 'nlag')
-SENHA   = os.environ.get('APP_SENHA',   'deposito2026')
-
+# ──────────────────────────────────────────────
+# Auth
+# ──────────────────────────────────────────────
 @app.before_request
 def verificar_login():
     rotas_liberadas = ['login', 'static', 'print_etiqueta']
-    if request.endpoint in rotas_liberadas:
-        return
-    if not session.get('logado'):
+    if request.endpoint not in rotas_liberadas and 'usuario' not in session:
         return redirect(url_for('login'))
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     erro = None
     if request.method == 'POST':
-        if (request.form['usuario'] == USUARIO and
-                request.form['senha'] == SENHA):
-            session['logado'] = True
+        if (request.form['usuario'] == APP_USUARIO and
+                request.form['senha'] == APP_SENHA):
+            session['usuario'] = request.form['usuario']
             return redirect(url_for('index'))
-        erro = "Usuário ou senha incorretos."
+        erro = 'Usuário ou senha inválidos.'
     return render_template('login.html', erro=erro)
 
 @app.route('/logout')
@@ -114,389 +118,292 @@ def logout():
     session.clear()
     return redirect(url_for('login'))
 
-# ─────────────────────────────────────────
-# DASHBOARD
-# ─────────────────────────────────────────
+# ──────────────────────────────────────────────
+# Dashboard
+# ──────────────────────────────────────────────
 @app.route('/')
 def index():
-    saldo = query('''
-        SELECT
-            m.codigo, m.descricao, m.unidade,
-            COALESCE(SUM(CASE WHEN mov.tipo='ENTRADA' THEN mov.quantidade ELSE 0 END), 0)
-          - COALESCE(SUM(CASE WHEN mov.tipo='SAIDA'   THEN mov.quantidade ELSE 0 END), 0)
-          AS saldo
-        FROM materiais m
-        LEFT JOIN movimentacoes mov ON m.codigo = mov.codigo
-        GROUP BY m.codigo, m.descricao, m.unidade
-        ORDER BY m.descricao
-    ''', fetchall=True) or []
-
-    total_itens     = len(saldo)
-    total_zerados   = sum(1 for s in saldo if float(s['saldo']) <= 0)
-    total_com_saldo = total_itens - total_zerados
-
+    materiais = query('SELECT * FROM materiais ORDER BY codigo', fetchall=True)
+    saldo = []
+    for m in materiais:
+        s = calcular_saldo(m['codigo'])
+        saldo.append({**m, 'saldo': s})
+    total_itens      = len(saldo)
+    total_com_saldo  = sum(1 for i in saldo if i['saldo'] > 0)
+    total_zerados    = sum(1 for i in saldo if i['saldo'] <= 0)
+    agora = datetime.now().strftime('%d/%m/%Y %H:%M')
     return render_template('index.html',
                            saldo=saldo,
                            total_itens=total_itens,
-                           total_zerados=total_zerados,
                            total_com_saldo=total_com_saldo,
-                           agora=datetime.now().strftime('%d/%m/%Y %H:%M'))
+                           total_zerados=total_zerados,
+                           agora=agora)
 
-# ─────────────────────────────────────────
-# CADASTRO DE MATERIAIS
-# ─────────────────────────────────────────
+# ──────────────────────────────────────────────
+# Materiais
+# ──────────────────────────────────────────────
 @app.route('/materiais', methods=['GET', 'POST'])
 def materiais():
     if request.method == 'POST':
         acao = request.form.get('acao')
         if acao == 'cadastrar':
-            codigo    = request.form['codigo'].strip().upper()
+            codigo   = request.form['codigo'].strip().upper()
             descricao = request.form['descricao'].strip().upper()
-            unidade   = request.form['unidade'].strip().upper()
+            unidade  = request.form['unidade'].strip().upper()
             try:
                 query(
-                    'INSERT INTO materiais (codigo, descricao, unidade) VALUES (%s,%s,%s)',
+                    'INSERT INTO materiais (codigo,descricao,unidade) VALUES (%s,%s,%s)',
                     (codigo, descricao, unidade), commit=True
                 )
-                flash(f"✅ Material {codigo} — {descricao} cadastrado!", "success")
+                flash(f'✅ Material {codigo} cadastrado!', 'success')
             except Exception:
-                flash(f"⚠️ Código {codigo} já existe no sistema.", "danger")
+                flash(f'❌ Código {codigo} já existe ou erro ao cadastrar.', 'danger')
         elif acao == 'excluir':
             codigo = request.form['codigo'].strip().upper()
-            query('DELETE FROM materiais WHERE codigo = %s', (codigo,), commit=True)
-            flash(f"🗑️ Material {codigo} excluído.", "warning")
-
-    lista = query('SELECT * FROM materiais ORDER BY descricao', fetchall=True) or []
+            try:
+                query('DELETE FROM materiais WHERE codigo=%s', (codigo,), commit=True)
+                flash(f'🗑️ Material {codigo} excluído.', 'warning')
+            except Exception:
+                flash(f'❌ Erro ao excluir {codigo}.', 'danger')
+        return redirect(url_for('materiais'))
+    lista = query('SELECT * FROM materiais ORDER BY codigo', fetchall=True)
     return render_template('materiais.html', lista=lista)
 
-# ─────────────────────────────────────────
-# IMPORTAR CSV
-# ─────────────────────────────────────────
+# ──────────────────────────────────────────────
+# Importar CSV
+# ──────────────────────────────────────────────
 @app.route('/importar_csv', methods=['POST'])
 def importar_csv():
-    arquivo = request.files.get('arquivo_csv')
-    if not arquivo:
-        flash("Nenhum arquivo enviado.", "danger")
+    f = request.files.get('arquivo_csv')
+    if not f:
+        flash('❌ Nenhum arquivo enviado.', 'danger')
         return redirect(url_for('materiais'))
-
-    raw      = arquivo.stream.read()
-    conteudo = None
-    for enc in ('utf-8-sig', 'latin-1', 'cp1252', 'iso-8859-1'):
+    raw = f.read()
+    for enc in ('utf-8-sig', 'latin-1', 'cp1252'):
         try:
-            conteudo = raw.decode(enc)
+            texto = raw.decode(enc)
             break
-        except (UnicodeDecodeError, LookupError):
+        except Exception:
             continue
-
-    if conteudo is None:
-        flash("❌ Não foi possível ler o arquivo.", "danger")
+    else:
+        flash('❌ Encoding não reconhecido.', 'danger')
         return redirect(url_for('materiais'))
-
-    stream    = io.StringIO(conteudo, newline=None)
-    amostra   = conteudo[:1024]
-    sep       = ';' if amostra.count(';') >= amostra.count(',') else ','
-    reader    = csv.DictReader(stream, delimiter=sep)
-    inseridos = 0
-    ignorados = 0
-    erros     = []
-    conn      = get_db()
-
-    for i, row in enumerate(reader, start=2):
-        cur = conn.cursor()
+    delim = ';' if ';' in texto.splitlines()[0] else ','
+    reader = csv.DictReader(io.StringIO(texto), delimiter=delim)
+    inseridos = ignorados = 0
+    erros = []
+    for i, row in enumerate(reader, 1):
         try:
-            row       = {k.strip().lower().replace('\ufeff', ''): v
-                         for k, v in row.items() if k}
-            codigo    = row.get('codigo',    '').strip().upper()
-            descricao = row.get('descricao', '').strip().upper()
-            unidade   = row.get('unidade',   '').strip().upper()
-            if not codigo or not descricao or not unidade:
-                erros.append(f"Linha {i}: campos vazios")
-                ignorados += 1
-                cur.close()
+            codigo    = row.get('codigo','').strip().upper()
+            descricao = row.get('descricao','').strip().upper()
+            unidade   = row.get('unidade','UN').strip().upper()
+            if not codigo:
                 continue
-            cur.execute(
-                'INSERT INTO materiais (codigo, descricao, unidade) '
-                'VALUES (%s, %s, %s) ON CONFLICT (codigo) DO NOTHING',
-                (codigo, descricao, unidade)
+            query(
+                'INSERT INTO materiais (codigo,descricao,unidade) VALUES (%s,%s,%s) ON CONFLICT DO NOTHING',
+                (codigo, descricao, unidade), commit=True
             )
-            if cur.rowcount > 0:
-                inseridos += 1
-            else:
-                ignorados += 1
-                erros.append(f"Linha {i}: '{codigo}' já existe")
-            conn.commit()
-            cur.close()
+            inseridos += 1
         except Exception as e:
-            conn.rollback()
-            erros.append(f"Linha {i}: erro — {str(e)[:60]}")
             ignorados += 1
-            if not cur.closed:
-                cur.close()
-
-    conn.close()
-    partes = [f"✅ {inseridos} material(is) importado(s)!"]
-    if ignorados:
-        partes.append(f"⚠️ {ignorados} linha(s) ignorada(s).")
+            if len(erros) < 5:
+                erros.append(f'Linha {i}: {e}')
+    msg = f'✅ {inseridos} inseridos, {ignorados} ignorados.'
     if erros:
-        partes.append("Detalhes: " + " | ".join(erros[:5]))
-    flash(" ".join(partes), "success" if inseridos > 0 else "warning")
+        msg += ' Erros: ' + ' | '.join(erros)
+    flash(msg, 'success' if not erros else 'warning')
     return redirect(url_for('materiais'))
 
-# ─────────────────────────────────────────
-# ENTRADA
-# ─────────────────────────────────────────
+# ──────────────────────────────────────────────
+# Entrada
+# ──────────────────────────────────────────────
 @app.route('/entrada', methods=['GET', 'POST'])
 def entrada():
     material    = None
     barcode_img = None
-    quantidade  = None
-    agora_str   = datetime.now().strftime('%d/%m/%Y %H:%M')
-
+    agora = datetime.now().strftime('%d/%m/%Y %H:%M')
+    codigo_pre = request.args.get('codigo', '')
+    if codigo_pre:
+        material    = query('SELECT * FROM materiais WHERE codigo=%s',
+                            (codigo_pre.upper(),), fetchone=True)
+        barcode_img = gerar_barcode_base64(codigo_pre.upper()) if material else None
     if request.method == 'POST':
-        codigo     = request.form.get('codigo', '').strip().upper()
-        quantidade = request.form.get('quantidade', '')
-        obs        = request.form.get('observacao', '')
-
-        material = query(
-            'SELECT * FROM materiais WHERE codigo = %s',
-            (codigo,), fetchone=True
+        codigo      = request.form['codigo'].strip().upper()
+        quantidade  = request.form['quantidade'].strip()
+        observacao  = request.form.get('observacao', '').strip()
+        try:
+            qty = float(quantidade)
+            if qty <= 0:
+                raise ValueError
+        except ValueError:
+            flash('❌ Quantidade inválida.', 'danger')
+            return redirect(url_for('entrada'))
+        mat = query('SELECT * FROM materiais WHERE codigo=%s', (codigo,), fetchone=True)
+        if not mat:
+            flash(f'❌ Código {codigo} não encontrado.', 'danger')
+            return redirect(url_for('entrada'))
+        query(
+            'INSERT INTO movimentacoes (codigo,tipo,quantidade,data_hora,observacao) VALUES (%s,%s,%s,%s,%s)',
+            (codigo, 'ENTRADA', qty, datetime.now(), observacao), commit=True
         )
-
-        if material:
-            try:
-                qtd = float(quantidade)
-                if qtd <= 0:
-                    flash("❌ Quantidade deve ser maior que zero.", "danger")
-                else:
-                    query(
-                        'INSERT INTO movimentacoes '
-                        '(codigo, tipo, quantidade, data_hora, observacao) '
-                        'VALUES (%s,%s,%s,%s,%s)',
-                        (codigo, 'ENTRADA', qtd,
-                         datetime.now().strftime('%Y-%m-%d %H:%M:%S'), obs),
-                        commit=True
-                    )
-                    barcode_img = gerar_barcode_base64(codigo)
-                    flash(f"✅ Entrada de "
-                          f"{int(qtd) if qtd == int(qtd) else qtd} "
-                          f"{material['unidade']} de {material['descricao']} registrada!",
-                          "success")
-            except ValueError:
-                flash("❌ Quantidade inválida.", "danger")
-        else:
-            flash(f"❌ Código {codigo} não encontrado.", "danger")
-
-    materiais_lista = query(
-        'SELECT codigo, descricao FROM materiais ORDER BY descricao',
-        fetchall=True
-    ) or []
-
+        flash(f'✅ Entrada de {qty} {mat["unidade"]} registrada para {codigo}.', 'success')
+        material    = mat
+        barcode_img = gerar_barcode_base64(codigo)
     return render_template('entrada.html',
                            material=material,
                            barcode_img=barcode_img,
-                           materiais=materiais_lista,
-                           quantidade=quantidade,
-                           agora=agora_str)
+                           agora=agora,
+                           codigo_pre=codigo_pre)
 
-# ─────────────────────────────────────────
-# IMPRIMIR ETIQUETA AVULSA
-# ─────────────────────────────────────────
-@app.route('/imprimir_etiqueta', methods=['GET', 'POST'])
+# ──────────────────────────────────────────────
+# Imprimir etiqueta (página de seleção)
+# ──────────────────────────────────────────────
+@app.route('/imprimir_etiqueta', methods=['GET'])
 def imprimir_etiqueta():
+    codigo      = request.args.get('codigo', '')
     material    = None
     barcode_img = None
-    agora_str   = datetime.now().strftime('%d/%m/%Y %H:%M')
-
-    codigo = request.args.get('codigo', '') or request.form.get('codigo', '')
+    agora = datetime.now().strftime('%d/%m/%Y %H:%M')
     if codigo:
-        codigo   = codigo.strip().upper()
-        material = query(
-            'SELECT * FROM materiais WHERE codigo = %s',
-            (codigo,), fetchone=True
-        )
-        if material:
-            barcode_img = gerar_barcode_base64(codigo)
-
-    materiais_lista = query(
-        'SELECT codigo, descricao FROM materiais ORDER BY descricao',
-        fetchall=True
-    ) or []
-
+        material    = query('SELECT * FROM materiais WHERE codigo=%s',
+                            (codigo.upper(),), fetchone=True)
+        barcode_img = gerar_barcode_base64(codigo.upper()) if material else None
     return render_template('imprimir_etiqueta.html',
                            material=material,
                            barcode_img=barcode_img,
-                           materiais=materiais_lista,
-                           agora=agora_str)
+                           agora=agora)
 
-# ─────────────────────────────────────────
-# IMPRESSÃO DIRETA — janela automática
-# ─────────────────────────────────────────
+# ──────────────────────────────────────────────
+# Print route – opens auto-print popup
+# ──────────────────────────────────────────────
 @app.route('/print/<codigo>')
 def print_etiqueta(codigo):
-    """
-    Abre página 100mm x 50mm e chama window.print() automaticamente.
-    Não precisa de exe, ngrok ou qualquer servidor local.
-    Funciona direto pelo Railway.
-    """
-    material = query(
-        'SELECT * FROM materiais WHERE codigo = %s',
-        (codigo.upper(),), fetchone=True
-    )
+    material = query('SELECT * FROM materiais WHERE codigo=%s',
+                     (codigo.upper(),), fetchone=True)
     if not material:
-        return f"<h3 style='font-family:sans-serif;padding:20px;color:red;'>" \
-               f"Código {codigo} não encontrado.</h3>", 404
-
+        return (f"<h3 style='font-family:sans-serif;padding:20px;color:red;'>"
+                f"Código {codigo} não encontrado.</h3>"), 404
     barcode_img = gerar_barcode_base64(codigo.upper())
     agora_str   = datetime.now().strftime('%d/%m/%Y %H:%M')
-
     return render_template('etiqueta_print.html',
                            material=material,
                            barcode_img=barcode_img,
                            agora=agora_str)
 
-# ─────────────────────────────────────────
-# SAÍDA
-# ─────────────────────────────────────────
+# ──────────────────────────────────────────────
+# Saída
+# ──────────────────────────────────────────────
 @app.route('/saida', methods=['GET', 'POST'])
 def saida():
+    agora = datetime.now().strftime('%d/%m/%Y %H:%M')
     if request.method == 'POST':
-        codigo    = request.form.get('codigo', '').strip().upper()
-        obs       = request.form.get('observacao', '')
-        data_hora = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        codigo     = request.form['codigo'].strip().upper()
+        quantidade = request.form['quantidade'].strip()
+        observacao = request.form.get('observacao', '').strip()
         try:
-            quantidade = float(request.form.get('quantidade', 0))
+            qty = float(quantidade)
+            if qty <= 0:
+                raise ValueError
         except ValueError:
-            quantidade = 0
-
-        material = query(
-            'SELECT * FROM materiais WHERE codigo = %s',
-            (codigo,), fetchone=True
+            flash('❌ Quantidade inválida.', 'danger')
+            return redirect(url_for('saida'))
+        mat = query('SELECT * FROM materiais WHERE codigo=%s', (codigo,), fetchone=True)
+        if not mat:
+            flash(f'❌ Código {codigo} não encontrado.', 'danger')
+            return redirect(url_for('saida'))
+        saldo = calcular_saldo(codigo)
+        if qty > saldo:
+            flash(f'❌ Saldo insuficiente. Saldo atual: {saldo} {mat["unidade"]}.', 'danger')
+            return redirect(url_for('saida'))
+        query(
+            'INSERT INTO movimentacoes (codigo,tipo,quantidade,data_hora,observacao) VALUES (%s,%s,%s,%s,%s)',
+            (codigo, 'SAIDA', qty, datetime.now(), observacao), commit=True
         )
-        if material:
-            saldo_atual = calcular_saldo(codigo)
-            if quantidade <= 0:
-                flash("❌ Quantidade deve ser maior que zero.", "danger")
-            elif quantidade > saldo_atual:
-                flash(f"❌ Saldo insuficiente! Saldo atual: "
-                      f"{int(saldo_atual) if saldo_atual == int(saldo_atual) else saldo_atual}"
-                      f" {material['unidade']}", "danger")
-            else:
-                query(
-                    'INSERT INTO movimentacoes '
-                    '(codigo, tipo, quantidade, data_hora, observacao) '
-                    'VALUES (%s,%s,%s,%s,%s)',
-                    (codigo, 'SAIDA', quantidade, data_hora, obs), commit=True
-                )
-                flash(f"✅ Saída de "
-                      f"{int(quantidade) if quantidade == int(quantidade) else quantidade}"
-                      f" {material['unidade']} de {material['descricao']} registrada!",
-                      "success")
-        else:
-            flash(f"❌ Código {codigo} não encontrado.", "danger")
+        flash(f'✅ Saída de {qty} {mat["unidade"]} registrada para {codigo}.', 'success')
+        return redirect(url_for('saida'))
+    codigo_pre = request.args.get('codigo', '')
+    return render_template('saida.html', agora=agora, codigo_pre=codigo_pre)
 
-    return render_template('saida.html')
-
-# ─────────────────────────────────────────
-# HISTÓRICO
-# ─────────────────────────────────────────
+# ──────────────────────────────────────────────
+# Histórico
+# ──────────────────────────────────────────────
 @app.route('/historico')
 def historico():
-    filtro = request.args.get('codigo', '').strip().upper()
-    tipo_f = request.args.get('tipo', '')
-    sql    = '''
-        SELECT mov.*, m.descricao, m.unidade
-        FROM movimentacoes mov
-        JOIN materiais m ON mov.codigo = m.codigo
-        WHERE 1=1
-    '''
+    codigo = request.args.get('codigo', '').strip().upper()
+    tipo   = request.args.get('tipo', '').strip().upper()
+    sql    = """SELECT m.data_hora,m.tipo,m.codigo,mat.descricao,mat.unidade,
+                       m.quantidade,m.observacao
+                FROM movimentacoes m
+                LEFT JOIN materiais mat ON mat.codigo=m.codigo
+                WHERE 1=1"""
     params = []
-    if filtro:
-        sql += ' AND mov.codigo LIKE %s'
-        params.append(f'%{filtro}%')
-    if tipo_f in ('ENTRADA', 'SAIDA'):
-        sql += ' AND mov.tipo = %s'
-        params.append(tipo_f)
-    sql += ' ORDER BY mov.data_hora DESC LIMIT 500'
-    movs = query(sql, params, fetchall=True) or []
-    return render_template('historico.html', movs=movs, filtro=filtro, tipo_f=tipo_f)
+    if codigo:
+        sql += ' AND m.codigo=%s'; params.append(codigo)
+    if tipo in ('ENTRADA','SAIDA'):
+        sql += ' AND m.tipo=%s'; params.append(tipo)
+    sql += ' ORDER BY m.data_hora DESC LIMIT 500'
+    movs = query(sql, params, fetchall=True)
+    agora = datetime.now().strftime('%d/%m/%Y %H:%M')
+    return render_template('historico.html', movs=movs, agora=agora,
+                           filtro_codigo=codigo, filtro_tipo=tipo)
 
-# ─────────────────────────────────────────
-# EXPORTAR SALDO CSV
-# ─────────────────────────────────────────
+# ──────────────────────────────────────────────
+# Exportar CSV
+# ──────────────────────────────────────────────
 @app.route('/exportar_saldo')
 def exportar_saldo():
-    saldo = query('''
-        SELECT m.codigo, m.descricao, m.unidade,
-            COALESCE(SUM(CASE WHEN mov.tipo='ENTRADA' THEN mov.quantidade ELSE 0 END), 0)
-          - COALESCE(SUM(CASE WHEN mov.tipo='SAIDA'   THEN mov.quantidade ELSE 0 END), 0)
-          AS saldo
-        FROM materiais m
-        LEFT JOIN movimentacoes mov ON m.codigo = mov.codigo
-        GROUP BY m.codigo, m.descricao, m.unidade
-        ORDER BY m.descricao
-    ''', fetchall=True) or []
-
+    materiais = query('SELECT * FROM materiais ORDER BY codigo', fetchall=True)
     def gerar():
         yield 'Codigo;Descricao;Unidade;Saldo\n'
-        for row in saldo:
-            s  = float(row['saldo'])
-            sf = str(int(s)) if s == int(s) else f"{s:.2f}"
-            yield f"{row['codigo']};{row['descricao']};{row['unidade']};{sf}\n"
+        for m in materiais:
+            s = calcular_saldo(m['codigo'])
+            yield f'{m["codigo"]};{m["descricao"]};{m["unidade"]};{s}\n'
+    return Response(stream_with_context(gerar()),
+                    mimetype='text/csv',
+                    headers={'Content-Disposition': 'attachment;filename=saldo_estoque.csv'})
 
-    return Response(gerar(), mimetype='text/csv',
-                    headers={'Content-Disposition':
-                             'attachment; filename=saldo_estoque.csv'})
-
-# ─────────────────────────────────────────
-# EXPORTAR HISTÓRICO CSV
-# ─────────────────────────────────────────
 @app.route('/exportar_historico')
 def exportar_historico():
-    movs = query('''
-        SELECT mov.data_hora, mov.tipo, mov.codigo, m.descricao,
-               m.unidade, mov.quantidade, mov.observacao
-        FROM movimentacoes mov
-        JOIN materiais m ON mov.codigo = m.codigo
-        ORDER BY mov.data_hora DESC
-    ''', fetchall=True) or []
-
+    movs = query(
+        """SELECT m.data_hora,m.tipo,m.codigo,mat.descricao,mat.unidade,
+                  m.quantidade,m.observacao
+           FROM movimentacoes m
+           LEFT JOIN materiais mat ON mat.codigo=m.codigo
+           ORDER BY m.data_hora DESC""",
+        fetchall=True
+    )
     def gerar():
         yield 'Data/Hora;Tipo;Codigo;Descricao;Unidade;Quantidade;Observacao\n'
-        for r in movs:
-            yield (f"{r['data_hora']};{r['tipo']};{r['codigo']};"
-                   f"{r['descricao']};{r['unidade']};{r['quantidade']};"
-                   f"{r['observacao'] or ''}\n")
+        for mv in movs:
+            dt = mv['data_hora'].strftime('%d/%m/%Y %H:%M') if mv['data_hora'] else ''
+            yield (f'{dt};{mv["tipo"]};{mv["codigo"]};{mv.get("descricao","")};'
+                   f'{mv.get("unidade","")};{mv["quantidade"]};{mv.get("observacao","")}\n')
+    return Response(stream_with_context(gerar()),
+                    mimetype='text/csv',
+                    headers={'Content-Disposition': 'attachment;filename=historico.csv'})
 
-    return Response(gerar(), mimetype='text/csv',
-                    headers={'Content-Disposition':
-                             'attachment; filename=historico.csv'})
-
-# ─────────────────────────────────────────
-# API AJAX — MATERIAL
-# ─────────────────────────────────────────
+# ──────────────────────────────────────────────
+# API AJAX
+# ──────────────────────────────────────────────
 @app.route('/api/material/<codigo>')
 def api_material(codigo):
-    material = query(
-        'SELECT * FROM materiais WHERE codigo = %s',
-        (codigo.upper(),), fetchone=True
-    )
-    saldo = calcular_saldo(codigo.upper()) if material else 0.0
-    if material:
-        dados          = dict(material)
-        dados['saldo'] = saldo
-        return jsonify(dados)
-    return jsonify({'erro': 'não encontrado'}), 404
+    mat = query('SELECT * FROM materiais WHERE codigo=%s',
+                (codigo.upper(),), fetchone=True)
+    if not mat:
+        return jsonify({'erro': 'Não encontrado'}), 404
+    saldo = calcular_saldo(codigo.upper())
+    return jsonify({**dict(mat), 'saldo': saldo})
 
-# ─────────────────────────────────────────
-# MODO COLETOR (MOBILE)
-# ─────────────────────────────────────────
+# ──────────────────────────────────────────────
+# Coletor mobile
+# ──────────────────────────────────────────────
 @app.route('/coletor')
 def coletor():
     return render_template('coletor.html')
 
-# ─────────────────────────────────────────
-# INICIALIZAÇÃO
-# ─────────────────────────────────────────
+# ──────────────────────────────────────────────
+# Init & run
+# ──────────────────────────────────────────────
 if __name__ == '__main__':
     from database import init_db
     init_db()
