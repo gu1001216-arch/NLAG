@@ -60,35 +60,29 @@ def calcular_saldo(codigo):
 
 # ─────────────────────────────────────────
 # IMPRESSÃO ZEBRA VIA REDE (ZPL)
-# Etiqueta 10cm x 5cm = 100mm x 50mm
-# A 203 dpi: 812 dots x 406 dots
+# Sem forçar PW/LL — usa config da impressora
 # ─────────────────────────────────────────
-def gerar_zpl(codigo, descricao, unidade, quantidade, data_hora, copias=1):
+def gerar_zpl(codigo, descricao, data_hora, copias=1):
     desc  = descricao[:35] if len(descricao) > 35 else descricao
     desc2 = descricao[35:70] if len(descricao) > 35 else ''
 
-    zpl = f"^XA\n"
-    zpl += f"^CI28\n"
-    zpl += f"^PW812\n"
-    zpl += f"^LL406\n"
-    zpl += f"^PQ{copias},0,1,Y\n"  # Quantidade de cópias
-    zpl += f"^FO20,18^A0N,26,26^FDNLAG - DEPOSITO^FS\n"
-    zpl += f"^FO20,50^GB772,2,2^FS\n"
-    zpl += f"^FO20,62^A0N,22,22^FDCod: {codigo}^FS\n"
+    zpl  = "^XA\n"
+    zpl += f"^PQ{copias},0,1,Y\n"
+    zpl += "^FO20,15^A0N,28,28^FDNLAG - DEPOSITO^FS\n"
+    zpl += "^FO20,48^GB700,2,2^FS\n"
+    zpl += f"^FO20,60^A0N,24,24^FDCod: {codigo}^FS\n"
 
     if desc2:
         zpl += f"^FO20,90^A0N,22,22^FD{desc}^FS\n"
         zpl += f"^FO20,116^A0N,22,22^FD{desc2}^FS\n"
-        zpl += f"^FO20,142^A0N,22,22^FDUnid: {unidade}   Qtd Entrada: {quantidade}^FS\n"
-        zpl += f"^FO20,168^A0N,20,20^FDData: {data_hora}^FS\n"
-        zpl += f"^FO20,194^GB772,2,2^FS\n"
-        zpl += f"^FO60,206^BCN,95,Y,N,N^FD{codigo}^FS\n"
+        zpl += f"^FO20,148^A0N,18,18^FDData: {data_hora}^FS\n"
+        zpl += "^FO20,172^GB700,2,2^FS\n"
+        zpl += f"^FO60,185^BCN,95,Y,N,N^FD{codigo}^FS\n"
     else:
         zpl += f"^FO20,90^A0N,22,22^FD{desc}^FS\n"
-        zpl += f"^FO20,118^A0N,22,22^FDUnid: {unidade}   Qtd Entrada: {quantidade}^FS\n"
-        zpl += f"^FO20,146^A0N,20,20^FDData: {data_hora}^FS\n"
-        zpl += f"^FO20,174^GB772,2,2^FS\n"
-        zpl += f"^FO60,186^BCN,110,Y,N,N^FD{codigo}^FS\n"
+        zpl += f"^FO20,120^A0N,18,18^FDData: {data_hora}^FS\n"
+        zpl += "^FO20,148^GB700,2,2^FS\n"
+        zpl += f"^FO60,162^BCN,110,Y,N,N^FD{codigo}^FS\n"
 
     zpl += "^XZ"
     return zpl
@@ -101,7 +95,7 @@ def enviar_para_zebra(ip, zpl, porta=9100, timeout=5):
             s.sendall(zpl.encode('utf-8'))
         return True, "✅ Etiqueta(s) enviada(s) para a impressora com sucesso!"
     except socket.timeout:
-        return False, f"❌ Timeout: impressora {ip} não respondeu em {timeout}s. Verifique se está ligada."
+        return False, f"❌ Timeout: impressora {ip} não respondeu. Verifique se está ligada na rede."
     except ConnectionRefusedError:
         return False, f"❌ Conexão recusada pelo IP {ip}. Verifique o IP e a porta 9100."
     except OSError as e:
@@ -197,7 +191,7 @@ def materiais():
     return render_template('materiais.html', lista=lista)
 
 # ─────────────────────────────────────────
-# IMPORTAR CSV — CORRIGIDO
+# IMPORTAR CSV
 # ─────────────────────────────────────────
 @app.route('/importar_csv', methods=['POST'])
 def importar_csv():
@@ -289,18 +283,17 @@ def entrada():
     msg_zebra   = None
 
     if request.method == 'POST':
-        acao       = request.form.get('acao', 'registrar')
-        codigo     = request.form.get('codigo', '').strip().upper()
+        acao      = request.form.get('acao', 'registrar')
+        codigo    = request.form.get('codigo', '').strip().upper()
         quantidade = request.form.get('quantidade', '')
-        obs        = request.form.get('observacao', '')
-        data_hora  = datetime.now().strftime('%d/%m/%Y %H:%M')
+        obs       = request.form.get('observacao', '')
+        data_hora = datetime.now().strftime('%d/%m/%Y %H:%M')
 
         material = query(
             'SELECT * FROM materiais WHERE codigo = %s',
             (codigo,), fetchone=True
         )
 
-        # ── REGISTRAR ENTRADA ──
         if acao == 'registrar':
             if material:
                 try:
@@ -324,18 +317,11 @@ def entrada():
             else:
                 flash(f"❌ Código {codigo} não encontrado.", "danger")
 
-        # ── IMPRIMIR ETIQUETA ZEBRA ──
         elif acao == 'imprimir_zebra':
-            ip_zebra   = request.form.get('ip_zebra', '').strip()
-            copias     = request.form.get('copias', '1').strip()
-            quantidade = request.form.get('quantidade', '1').strip()
-
+            ip_zebra = request.form.get('ip_zebra', '').strip()
+            copias   = request.form.get('copias', '1').strip()
             try:
-                copias_int = int(copias)
-                if copias_int < 1:
-                    copias_int = 1
-                if copias_int > 999:
-                    copias_int = 999
+                copias_int = max(1, min(999, int(copias)))
             except ValueError:
                 copias_int = 1
 
@@ -344,26 +330,16 @@ def entrada():
             elif not material:
                 msg_zebra = ("danger", f"❌ Código {codigo} não encontrado.")
             else:
-                zpl = gerar_zpl(
-                    codigo,
-                    material['descricao'],
-                    material['unidade'],
-                    quantidade,
-                    data_hora,
-                    copias_int
-                )
+                zpl = gerar_zpl(codigo, material['descricao'], data_hora, copias_int)
                 ok, mensagem = enviar_para_zebra(ip_zebra, zpl)
                 msg_zebra = ("success" if ok else "danger", mensagem)
                 barcode_img = gerar_barcode_base64(codigo)
-                # Salva IP na sessão para não precisar digitar sempre
                 session['ip_zebra'] = ip_zebra
 
     materiais_lista = query(
         'SELECT codigo, descricao FROM materiais ORDER BY descricao',
         fetchall=True
     ) or []
-
-    ip_zebra_salvo = session.get('ip_zebra', '')
 
     return render_template('entrada.html',
                            material=material,
@@ -372,37 +348,32 @@ def entrada():
                            quantidade=quantidade,
                            agora=agora_str,
                            msg_zebra=msg_zebra,
-                           ip_zebra_salvo=ip_zebra_salvo)
+                           ip_zebra_salvo=session.get('ip_zebra', ''))
 
 # ─────────────────────────────────────────
-# IMPRIMIR ETIQUETA AVULSA (sem entrada)
+# IMPRIMIR ETIQUETA AVULSA
 # ─────────────────────────────────────────
 @app.route('/imprimir_etiqueta', methods=['GET', 'POST'])
 def imprimir_etiqueta():
-    material   = None
+    material    = None
     barcode_img = None
-    msg_zebra  = None
-    agora_str  = datetime.now().strftime('%d/%m/%Y %H:%M')
+    msg_zebra   = None
+    agora_str   = datetime.now().strftime('%d/%m/%Y %H:%M')
 
     if request.method == 'POST':
-        codigo     = request.form.get('codigo', '').strip().upper()
-        ip_zebra   = request.form.get('ip_zebra', '').strip()
-        copias     = request.form.get('copias', '1').strip()
-        quantidade = request.form.get('quantidade', '-')
+        codigo   = request.form.get('codigo', '').strip().upper()
+        ip_zebra = request.form.get('ip_zebra', '').strip()
+        copias   = request.form.get('copias', '1').strip()
+
+        try:
+            copias_int = max(1, min(999, int(copias)))
+        except ValueError:
+            copias_int = 1
 
         material = query(
             'SELECT * FROM materiais WHERE codigo = %s',
             (codigo,), fetchone=True
         )
-
-        try:
-            copias_int = int(copias)
-            if copias_int < 1:
-                copias_int = 1
-            if copias_int > 999:
-                copias_int = 999
-        except ValueError:
-            copias_int = 1
 
         if not material:
             flash(f"❌ Código {codigo} não encontrado.", "danger")
@@ -410,14 +381,7 @@ def imprimir_etiqueta():
             flash("❌ Informe o IP da impressora Zebra.", "danger")
             barcode_img = gerar_barcode_base64(codigo)
         else:
-            zpl = gerar_zpl(
-                codigo,
-                material['descricao'],
-                material['unidade'],
-                quantidade,
-                agora_str,
-                copias_int
-            )
+            zpl = gerar_zpl(codigo, material['descricao'], agora_str, copias_int)
             ok, mensagem = enviar_para_zebra(ip_zebra, zpl)
             msg_zebra = ("success" if ok else "danger", mensagem)
             barcode_img = gerar_barcode_base64(codigo)
@@ -428,14 +392,12 @@ def imprimir_etiqueta():
         fetchall=True
     ) or []
 
-    ip_zebra_salvo = session.get('ip_zebra', '')
-
     return render_template('imprimir_etiqueta.html',
                            material=material,
                            barcode_img=barcode_img,
                            materiais=materiais_lista,
                            msg_zebra=msg_zebra,
-                           ip_zebra_salvo=ip_zebra_salvo,
+                           ip_zebra_salvo=session.get('ip_zebra', ''),
                            agora=agora_str)
 
 # ─────────────────────────────────────────
@@ -463,8 +425,9 @@ def saida():
             if quantidade <= 0:
                 flash("❌ Quantidade deve ser maior que zero.", "danger")
             elif quantidade > saldo_atual:
-                flash(f"❌ Saldo insuficiente! "
-                      f"Saldo atual: {saldo_atual} {material['unidade']}", "danger")
+                flash(f"❌ Saldo insuficiente! Saldo atual: "
+                      f"{int(saldo_atual) if saldo_atual == int(saldo_atual) else saldo_atual}"
+                      f" {material['unidade']}", "danger")
             else:
                 query(
                     'INSERT INTO movimentacoes '
@@ -472,8 +435,9 @@ def saida():
                     'VALUES (%s,%s,%s,%s,%s)',
                     (codigo, 'SAIDA', quantidade, data_hora, obs), commit=True
                 )
-                flash(f"✅ Saída de {quantidade} {material['unidade']} "
-                      f"de {material['descricao']} registrada!", "success")
+                flash(f"✅ Saída de "
+                      f"{int(quantidade) if quantidade == int(quantidade) else quantidade}"
+                      f" {material['unidade']} de {material['descricao']} registrada!", "success")
         else:
             flash(f"❌ Código {codigo} não encontrado.", "danger")
 
