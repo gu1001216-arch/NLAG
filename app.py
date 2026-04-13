@@ -5,7 +5,7 @@ import psycopg2.extras
 from datetime import datetime
 import barcode
 from barcode.writer import ImageWriter
-import io, base64, csv, os, socket
+import io, base64, csv, os
 import urllib.request, urllib.error, json as json_lib
 
 app = Flask(__name__)
@@ -85,56 +85,6 @@ def gerar_zpl(codigo, descricao, data_hora, copias=1):
     return zpl
 
 # ─────────────────────────────────────────
-# API — TESTA SERVIDOR LOCAL (NLAG_Impressora.exe)
-# ─────────────────────────────────────────
-@app.route('/api/testar_servidor', methods=['POST'])
-def api_testar_servidor():
-    data     = request.get_json(force=True) or {}
-    servidor = data.get('servidor', '').rstrip('/')
-    if not servidor:
-        return jsonify({'ok': False, 'msg': 'Endereço não informado'}), 400
-    try:
-        req = urllib.request.Request(f"{servidor}/ping", method='GET')
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            resultado = json_lib.loads(resp.read().decode())
-            return jsonify({'ok': True, 'msg': resultado.get('msg', 'Online!')})
-    except Exception:
-        return jsonify({
-            'ok':  False,
-            'msg': f'Servidor não encontrado em {servidor}. Verifique se o NLAG_Impressora.exe está rodando.'
-        })
-
-# ─────────────────────────────────────────
-# API — ENVIA ZPL AO SERVIDOR LOCAL
-# ─────────────────────────────────────────
-@app.route('/api/imprimir_zpl', methods=['POST'])
-def api_imprimir_zpl():
-    data     = request.get_json(force=True) or {}
-    zpl      = data.get('zpl', '')
-    servidor = data.get('servidor', '').rstrip('/')
-    if not zpl:
-        return jsonify({'ok': False, 'msg': 'ZPL vazio'}), 400
-    if not servidor:
-        return jsonify({'ok': False, 'msg': 'Endereço do servidor não informado'}), 400
-    try:
-        req = urllib.request.Request(
-            f"{servidor}/imprimir",
-            data=zpl.encode('utf-8'),
-            headers={'Content-Type': 'text/plain'},
-            method='POST'
-        )
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            resultado = json_lib.loads(resp.read().decode())
-            return jsonify(resultado)
-    except urllib.error.URLError:
-        return jsonify({
-            'ok':  False,
-            'msg': f'❌ Servidor local não encontrado em {servidor}. Verifique se o NLAG_Impressora.exe está rodando no PC.'
-        }), 502
-    except Exception as e:
-        return jsonify({'ok': False, 'msg': f'❌ Erro: {str(e)}'}), 500
-
-# ─────────────────────────────────────────
 # AUTENTICAÇÃO
 # ─────────────────────────────────────────
 USUARIO = os.environ.get('APP_USUARIO', 'nlag')
@@ -142,7 +92,7 @@ SENHA   = os.environ.get('APP_SENHA',   'deposito2026')
 
 @app.before_request
 def verificar_login():
-    rotas_liberadas = ['login', 'static']
+    rotas_liberadas = ['login', 'static', 'print_etiqueta']
     if request.endpoint in rotas_liberadas:
         return
     if not session.get('logado'):
@@ -303,9 +253,9 @@ def entrada():
     agora_str   = datetime.now().strftime('%d/%m/%Y %H:%M')
 
     if request.method == 'POST':
-        codigo    = request.form.get('codigo', '').strip().upper()
+        codigo     = request.form.get('codigo', '').strip().upper()
         quantidade = request.form.get('quantidade', '')
-        obs       = request.form.get('observacao', '')
+        obs        = request.form.get('observacao', '')
 
         material = query(
             'SELECT * FROM materiais WHERE codigo = %s',
@@ -379,6 +329,32 @@ def imprimir_etiqueta():
                            agora=agora_str)
 
 # ─────────────────────────────────────────
+# IMPRESSÃO DIRETA — janela automática
+# ─────────────────────────────────────────
+@app.route('/print/<codigo>')
+def print_etiqueta(codigo):
+    """
+    Abre página 100mm x 50mm e chama window.print() automaticamente.
+    Não precisa de exe, ngrok ou qualquer servidor local.
+    Funciona direto pelo Railway.
+    """
+    material = query(
+        'SELECT * FROM materiais WHERE codigo = %s',
+        (codigo.upper(),), fetchone=True
+    )
+    if not material:
+        return f"<h3 style='font-family:sans-serif;padding:20px;color:red;'>" \
+               f"Código {codigo} não encontrado.</h3>", 404
+
+    barcode_img = gerar_barcode_base64(codigo.upper())
+    agora_str   = datetime.now().strftime('%d/%m/%Y %H:%M')
+
+    return render_template('etiqueta_print.html',
+                           material=material,
+                           barcode_img=barcode_img,
+                           agora=agora_str)
+
+# ─────────────────────────────────────────
 # SAÍDA
 # ─────────────────────────────────────────
 @app.route('/saida', methods=['GET', 'POST'])
@@ -413,7 +389,8 @@ def saida():
                 )
                 flash(f"✅ Saída de "
                       f"{int(quantidade) if quantidade == int(quantidade) else quantidade}"
-                      f" {material['unidade']} de {material['descricao']} registrada!", "success")
+                      f" {material['unidade']} de {material['descricao']} registrada!",
+                      "success")
         else:
             flash(f"❌ Código {codigo} não encontrado.", "danger")
 
@@ -467,7 +444,8 @@ def exportar_saldo():
             yield f"{row['codigo']};{row['descricao']};{row['unidade']};{sf}\n"
 
     return Response(gerar(), mimetype='text/csv',
-                    headers={'Content-Disposition': 'attachment; filename=saldo_estoque.csv'})
+                    headers={'Content-Disposition':
+                             'attachment; filename=saldo_estoque.csv'})
 
 # ─────────────────────────────────────────
 # EXPORTAR HISTÓRICO CSV
@@ -490,10 +468,11 @@ def exportar_historico():
                    f"{r['observacao'] or ''}\n")
 
     return Response(gerar(), mimetype='text/csv',
-                    headers={'Content-Disposition': 'attachment; filename=historico.csv'})
+                    headers={'Content-Disposition':
+                             'attachment; filename=historico.csv'})
 
 # ─────────────────────────────────────────
-# API AJAX
+# API AJAX — MATERIAL
 # ─────────────────────────────────────────
 @app.route('/api/material/<codigo>')
 def api_material(codigo):
@@ -509,7 +488,7 @@ def api_material(codigo):
     return jsonify({'erro': 'não encontrado'}), 404
 
 # ─────────────────────────────────────────
-# MODO COLETOR
+# MODO COLETOR (MOBILE)
 # ─────────────────────────────────────────
 @app.route('/coletor')
 def coletor():
