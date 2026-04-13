@@ -8,230 +8,123 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
   <style>
     body { background-color: #f0f2f5; }
-
-    /* ── SIDEBAR ── */
     .sidebar {
-      min-height: 100vh;
-      background: #1e2a3a;
-      padding-top: 20px;
-      position: sticky;
-      top: 0;
-      height: 100vh;
-      overflow-y: auto;
+      min-height: 100vh; background: #1e2a3a;
+      padding-top: 20px; position: sticky;
+      top: 0; height: 100vh; overflow-y: auto;
     }
     .sidebar a {
-      display: block;
-      color: #adb5bd;
-      padding: 10px 20px;
-      text-decoration: none;
-      font-size: 0.92rem;
-      border-left: 3px solid transparent;
+      display: block; color: #adb5bd;
+      padding: 10px 20px; text-decoration: none;
+      font-size: 0.92rem; border-left: 3px solid transparent;
       transition: all 0.2s;
     }
-    .sidebar a:hover,
-    .sidebar a.active {
-      color: #ffffff;
-      background: rgba(255,255,255,0.07);
+    .sidebar a:hover, .sidebar a.active {
+      color: #fff; background: rgba(255,255,255,0.07);
       border-left: 3px solid #0d6efd;
     }
-    .sidebar a i {
-      margin-right: 9px;
-      font-size: 1rem;
-    }
-    .sidebar .menu-titulo {
-      color: #6c757d;
-      font-size: 0.72rem;
-      text-transform: uppercase;
-      letter-spacing: 1px;
+    .sidebar a i { margin-right: 9px; font-size: 1rem; }
+    .menu-titulo {
+      color: #6c757d; font-size: 0.72rem;
+      text-transform: uppercase; letter-spacing: 1px;
       padding: 16px 20px 5px;
     }
-    .sidebar-logo  { color: #fff; font-size: 1.35rem; font-weight: 700; }
-    .sidebar-sub   { color: #6c757d; font-size: 0.75rem; }
-    .sidebar-footer {
-      padding: 20px 20px 10px;
-      color: #3d5068;
-      font-size: 0.70rem;
-      text-align: center;
-    }
-
-    /* ── CONTEÚDO PRINCIPAL ── */
+    .sidebar-logo { color: #fff; font-size: 1.35rem; font-weight: 700; }
+    .sidebar-sub  { color: #6c757d; font-size: 0.75rem; }
+    .sidebar-footer { padding: 20px 20px 10px; color: #3d5068; font-size: 0.70rem; text-align: center; }
     .main-content { padding: 28px 24px; }
-
-    /* ── CARDS ── */
-    .card {
-      border: none;
-      border-radius: 12px;
-      box-shadow: 0 2px 12px rgba(0,0,0,0.07);
-    }
-    .card-header {
-      border-radius: 12px 12px 0 0 !important;
-      font-weight: 600;
-    }
-    .table thead th {
-      background-color: #1e2a3a;
-      color: #fff;
-      border: none;
-    }
-
-    /* ── NAVBAR MOBILE ── */
+    .card { border: none; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); }
+    .card-header { border-radius: 12px 12px 0 0 !important; font-weight: 600; }
+    .table thead th { background-color: #1e2a3a; color: #fff; border: none; }
     .navbar-mobile {
-      display: none;
-      background: #1e2a3a;
-      padding: 12px 16px;
-      align-items: center;
+      display: none; background: #1e2a3a;
+      padding: 12px 16px; align-items: center;
       justify-content: space-between;
-      position: sticky;
-      top: 0;
-      z-index: 1030;
+      position: sticky; top: 0; z-index: 1030;
     }
-    .navbar-mobile .logo   { color: #fff; font-size: 1.1rem; font-weight: 700; }
+    .navbar-mobile .logo { color: #fff; font-size: 1.1rem; font-weight: 700; }
     .navbar-mobile .btn-menu {
-      background: none;
-      border: none;
-      color: #fff;
-      font-size: 1.6rem;
-      cursor: pointer;
-      padding: 0;
-      line-height: 1;
+      background: none; border: none; color: #fff;
+      font-size: 1.6rem; cursor: pointer; padding: 0; line-height: 1;
     }
-
-    /* ── OVERLAY ── */
     .overlay {
-      display: none;
-      position: fixed;
-      top: 0; left: 0;
+      display: none; position: fixed; top: 0; left: 0;
       width: 100%; height: 100%;
-      background: rgba(0,0,0,0.5);
-      z-index: 1040;
+      background: rgba(0,0,0,0.5); z-index: 1040;
     }
     .overlay.ativa { display: block; }
-
-    /* ── RESPONSIVO ── */
     @media (max-width: 768px) {
       .navbar-mobile { display: flex; }
       .sidebar {
-        display: none;
-        position: fixed;
-        top: 0; left: 0;
-        width: 270px;
-        height: 100vh;
-        z-index: 1050;
-        min-height: 100vh;
-        padding-top: 12px;
+        display: none; position: fixed; top: 0; left: 0;
+        width: 270px; height: 100vh; z-index: 1050;
+        min-height: 100vh; padding-top: 12px;
       }
       .sidebar.aberta { display: block; }
       .main-content { padding: 16px 12px; }
-      .col-md-10 { padding: 0; }
     }
-
-    /* ── IMPRESSÃO ── */
     @media print {
-      .no-print { display: none !important; }
-      .sidebar  { display: none !important; }
-      .navbar-mobile { display: none !important; }
+      .no-print, .sidebar, .navbar-mobile { display: none !important; }
       .col-md-2 { display: none !important; }
-      .col-md-10 {
-        width: 100% !important;
-        flex: 0 0 100% !important;
-        max-width: 100% !important;
-      }
+      .col-md-10 { width: 100% !important; flex: 0 0 100% !important; max-width: 100% !important; }
     }
   </style>
 </head>
 <body>
-
-<!-- OVERLAY (clique fora fecha menu mobile) -->
 <div class="overlay" id="overlay" onclick="fecharMenu()"></div>
-
-<!-- NAVBAR MOBILE -->
 <div class="navbar-mobile no-print">
   <span class="logo"><i class="bi bi-boxes"></i> NLAG — Depósito</span>
-  <button class="btn-menu" onclick="abrirMenu()">
-    <i class="bi bi-list"></i>
-  </button>
+  <button class="btn-menu" onclick="abrirMenu()"><i class="bi bi-list"></i></button>
 </div>
-
 <div class="container-fluid p-0">
   <div class="row g-0">
-
-    <!-- ══════════════ SIDEBAR ══════════════ -->
     <div class="col-md-2 sidebar no-print" id="sidebar">
-
-      <!-- Fechar (somente mobile) -->
       <div class="d-md-none text-end px-3 pb-1">
-        <button onclick="fecharMenu()"
-                style="background:none;border:none;color:#adb5bd;font-size:1.4rem;">
+        <button onclick="fecharMenu()" style="background:none;border:none;color:#adb5bd;font-size:1.4rem;">
           <i class="bi bi-x-lg"></i>
         </button>
       </div>
-
-      <!-- Logo -->
       <div class="text-center py-3 px-2">
         <div class="sidebar-logo"><i class="bi bi-boxes"></i> NLAG</div>
         <div class="sidebar-sub">Controle de Depósito</div>
       </div>
-
       <hr style="border-color:#2d3d50;margin:0 0 4px 0;">
-
-      <!-- Botão Sair -->
       <div class="text-center py-2">
-        <a href="/logout"
-           style="display:inline-flex;align-items:center;gap:6px;
-                  color:#adb5bd;font-size:0.82rem;text-decoration:none;
-                  border:1px solid #2d3d50;border-radius:20px;
-                  padding:4px 16px;transition:all 0.2s;"
+        <a href="/logout" style="display:inline-flex;align-items:center;gap:6px;
+           color:#adb5bd;font-size:0.82rem;text-decoration:none;
+           border:1px solid #2d3d50;border-radius:20px;padding:4px 16px;transition:all 0.2s;"
            onmouseover="this.style.color='#fff';this.style.borderColor='#6c757d';"
            onmouseout="this.style.color='#adb5bd';this.style.borderColor='#2d3d50';">
           <i class="bi bi-box-arrow-right"></i> Sair
         </a>
       </div>
-
       <hr style="border-color:#2d3d50;margin:4px 0;">
-
-      <!-- ── PRINCIPAL ── -->
       <div class="menu-titulo">Principal</div>
-      <a href="/"
-         class="{{ 'active' if request.endpoint == 'index' else '' }}">
+      <a href="/" class="{{ 'active' if request.endpoint == 'index' else '' }}">
         <i class="bi bi-speedometer2"></i> Dashboard
       </a>
-
-      <!-- ── MOVIMENTAÇÃO ── -->
       <div class="menu-titulo">Movimentação</div>
-      <a href="/entrada"
-         class="{{ 'active' if request.endpoint == 'entrada' else '' }}">
+      <a href="/entrada" class="{{ 'active' if request.endpoint == 'entrada' else '' }}">
         <i class="bi bi-box-arrow-in-down"></i> Entrada
       </a>
-      <a href="/saida"
-         class="{{ 'active' if request.endpoint == 'saida' else '' }}">
+      <a href="/saida" class="{{ 'active' if request.endpoint == 'saida' else '' }}">
         <i class="bi bi-box-arrow-up"></i> Saída
       </a>
-      <a href="/historico"
-         class="{{ 'active' if request.endpoint == 'historico' else '' }}">
+      <a href="/historico" class="{{ 'active' if request.endpoint == 'historico' else '' }}">
         <i class="bi bi-clock-history"></i> Histórico
       </a>
-
-      <!-- ── ETIQUETAS ── -->
       <div class="menu-titulo">Etiquetas</div>
-      <a href="/imprimir_etiqueta"
-         class="{{ 'active' if request.endpoint == 'imprimir_etiqueta' else '' }}">
+      <a href="/imprimir_etiqueta" class="{{ 'active' if request.endpoint == 'imprimir_etiqueta' else '' }}">
         <i class="bi bi-tag"></i> Imprimir Etiqueta
       </a>
-
-      <!-- ── CADASTROS ── -->
       <div class="menu-titulo">Cadastros</div>
-      <a href="/materiais"
-         class="{{ 'active' if request.endpoint == 'materiais' else '' }}">
+      <a href="/materiais" class="{{ 'active' if request.endpoint == 'materiais' else '' }}">
         <i class="bi bi-list-ul"></i> Materiais
       </a>
-
-      <!-- ── ACESSO MOBILE ── -->
       <div class="menu-titulo">Acesso Mobile</div>
-      <a href="/coletor"
-         class="{{ 'active' if request.endpoint == 'coletor' else '' }}">
+      <a href="/coletor" class="{{ 'active' if request.endpoint == 'coletor' else '' }}">
         <i class="bi bi-phone"></i> Modo Celular
       </a>
-
-      <!-- ── RELATÓRIOS ── -->
       <div class="menu-titulo">Relatórios</div>
       <a href="/exportar_saldo">
         <i class="bi bi-file-earmark-spreadsheet"></i> Exportar Saldo CSV
@@ -239,15 +132,9 @@
       <a href="/exportar_historico">
         <i class="bi bi-file-earmark-arrow-down"></i> Exportar Histórico CSV
       </a>
-
       <div class="sidebar-footer">v1.0 — NLAG Depósito</div>
     </div>
-    <!-- ══════════════ FIM SIDEBAR ══════════════ -->
-
-    <!-- ══════════════ CONTEÚDO ══════════════ -->
     <div class="col-md-10 main-content">
-
-      <!-- Flash messages globais -->
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
           {% for categoria, mensagem in messages %}
@@ -258,14 +145,10 @@
           {% endfor %}
         {% endif %}
       {% endwith %}
-
       {% block content %}{% endblock %}
     </div>
-    <!-- ══════════════ FIM CONTEÚDO ══════════════ -->
-
   </div>
 </div>
-
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
   function abrirMenu() {
@@ -278,11 +161,8 @@
     document.getElementById('overlay').classList.remove('ativa');
     document.body.style.overflow = '';
   }
-  // Fecha menu ao clicar em qualquer link (mobile)
   document.querySelectorAll('#sidebar a').forEach(link => {
-    link.addEventListener('click', () => {
-      if (window.innerWidth <= 768) fecharMenu();
-    });
+    link.addEventListener('click', () => { if (window.innerWidth <= 768) fecharMenu(); });
   });
 </script>
 </body>
