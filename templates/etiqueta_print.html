@@ -5,19 +5,9 @@
   <title>Etiqueta {{ material.codigo }}</title>
   <style>
 
-    /*
-      Página física na Zebra: 50mm largura × 100mm altura (RETRATO)
-      O conteúdo da etiqueta é 100mm × 50mm (PAISAGEM).
-
-      Técnica correta:
-        - @page  → 50mm × 100mm retrato
-        - .etiqueta → 100mm × 50mm, rotacionada 270deg a partir do canto inferior esquerdo
-        - Resultado: conteúdo legível em paisagem dentro da etiqueta retrato
-    */
-
     @page {
-      size: 50mm 100mm portrait;
-      margin: 0mm;
+      size: 100mm 50mm;
+      margin: 0;
     }
 
     * {
@@ -29,44 +19,29 @@
     }
 
     html, body {
-      width: 50mm;
-      height: 100mm;
+      width: 100mm;
+      height: 50mm;
       overflow: hidden;
       background: #fff;
     }
 
-    /*
-      Posicionamento para rotate(270deg):
-      O elemento de 100mm × 50mm precisa ficar centralizado na página 50mm × 100mm.
-      Com rotate(270deg) e transform-origin: top left:
-        - left = 0mm
-        - top  = 100mm   (equivale a descer o elemento até o fundo da página antes de girar)
-      Margens de 2mm de cada lado → área útil: 96mm × 46mm
-    */
     .etiqueta {
-      position: absolute;
-      width:  100mm;
+      width: 100mm;
       height: 50mm;
-      top:  100mm;
-      left: 0mm;
-      transform: rotate(270deg);
-      transform-origin: top left;
-      background: #fff;
-
-      /* layout interno */
+      padding: 2mm 3mm 1.5mm 3mm;
+      font-family: Arial, Helvetica, sans-serif;
       display: flex;
       flex-direction: column;
-      justify-content: space-between;
-      padding: 2mm 2.5mm 2mm 2.5mm;
-      font-family: Arial, Helvetica, sans-serif;
+      gap: 1mm;
+      background: #fff;
     }
 
-    /* ── CABEÇALHO ── */
+    /* CABEÇALHO */
     .header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      border-bottom: 0.4mm solid #000;
+      border-bottom: 0.5mm solid #000;
       padding-bottom: 1mm;
       flex-shrink: 0;
     }
@@ -74,27 +49,27 @@
       font-size: 8pt;
       font-weight: 900;
       text-transform: uppercase;
-      letter-spacing: 0.3px;
+      letter-spacing: 0.5px;
       color: #000;
     }
     .data {
       font-size: 6pt;
-      color: #333;
+      color: #444;
     }
 
-    /* ── CÓDIGO + UNIDADE ── */
+    /* LINHA CÓDIGO + UNIDADE */
     .linha-codigo {
       display: flex;
-      align-items: center;
+      align-items: baseline;
       gap: 1.5mm;
       flex-shrink: 0;
     }
     .label-cod {
       font-size: 6pt;
-      color: #555;
+      color: #666;
     }
     .valor-codigo {
-      font-size: 15pt;
+      font-size: 16pt;
       font-weight: 900;
       letter-spacing: 1px;
       line-height: 1;
@@ -102,51 +77,52 @@
     }
     .badge-un {
       margin-left: auto;
-      font-size: 6.5pt;
+      font-size: 7pt;
       font-weight: 900;
       background: #000;
       color: #fff;
-      padding: 0.5mm 1.5mm;
+      padding: 0.5mm 2mm;
       border-radius: 2px;
+      white-space: nowrap;
     }
 
-    /* ── DESCRIÇÃO ── */
+    /* DESCRIÇÃO */
     .descricao {
       font-size: 7pt;
       font-weight: 700;
       text-transform: uppercase;
       color: #000;
-      line-height: 1.2;
+      line-height: 1.25;
+      flex-shrink: 0;
       overflow: hidden;
       display: -webkit-box;
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
-      flex-shrink: 0;
     }
 
-    /* ── CÓDIGO DE BARRAS ── */
+    /* CÓDIGO DE BARRAS */
     .barcode-wrap {
+      flex: 1;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      border-top: 0.3mm solid #aaa;
+      border-top: 0.3mm solid #ccc;
       padding-top: 1mm;
-      flex: 1;
     }
     .barcode-wrap img {
-      /* imagem gerada: 330×85px — proporção natural preservada */
-      width: 90mm;
-      height: auto;
-      max-height: 14mm;
+      /* Proporção natural preservada — sem esticar */
+      height: 11mm;
+      width: auto;
+      max-width: 94mm;
       display: block;
       image-rendering: pixelated;
     }
     .barcode-texto {
-      font-size: 6.5pt;
+      font-size: 6pt;
       font-family: 'Courier New', monospace;
       font-weight: 700;
-      letter-spacing: 2.5px;
+      letter-spacing: 3px;
       color: #000;
       margin-top: 0.5mm;
     }
