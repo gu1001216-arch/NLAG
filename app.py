@@ -60,24 +60,24 @@ def calcular_saldo(codigo):
     return float(row['saldo']) if row else 0.0
 
 # ─────────────────────────────────────────
-# ZPL — sem forçar config da impressora
+# ZPL — respeita config atual da impressora
 # ─────────────────────────────────────────
 def gerar_zpl(codigo, descricao, data_hora, copias=1):
-    desc  = descricao[:35] if len(descricao) > 35 else descricao
-    desc2 = descricao[35:70] if len(descricao) > 35 else ''
+    desc1 = descricao[:35]
+    desc2 = descricao[35:70].strip() if len(descricao) > 35 else ''
     zpl   = "^XA\n"
     zpl  += f"^PQ{copias},0,1,Y\n"
     zpl  += "^FO20,15^A0N,28,28^FDNLAG - DEPOSITO^FS\n"
     zpl  += "^FO20,48^GB700,2,2^FS\n"
     zpl  += f"^FO20,60^A0N,24,24^FDCod: {codigo}^FS\n"
     if desc2:
-        zpl += f"^FO20,90^A0N,22,22^FD{desc}^FS\n"
+        zpl += f"^FO20,90^A0N,22,22^FD{desc1}^FS\n"
         zpl += f"^FO20,116^A0N,22,22^FD{desc2}^FS\n"
         zpl += f"^FO20,148^A0N,18,18^FDData: {data_hora}^FS\n"
         zpl += "^FO20,172^GB700,2,2^FS\n"
         zpl += f"^FO60,185^BCN,95,Y,N,N^FD{codigo}^FS\n"
     else:
-        zpl += f"^FO20,90^A0N,22,22^FD{desc}^FS\n"
+        zpl += f"^FO20,90^A0N,22,22^FD{desc1}^FS\n"
         zpl += f"^FO20,120^A0N,18,18^FDData: {data_hora}^FS\n"
         zpl += "^FO20,148^GB700,2,2^FS\n"
         zpl += f"^FO60,162^BCN,110,Y,N,N^FD{codigo}^FS\n"
@@ -85,7 +85,7 @@ def gerar_zpl(codigo, descricao, data_hora, copias=1):
     return zpl
 
 # ─────────────────────────────────────────
-# API — TESTA SERVIDOR LOCAL (impressora.exe)
+# API — TESTA SERVIDOR LOCAL (NLAG_Impressora.exe)
 # ─────────────────────────────────────────
 @app.route('/api/testar_servidor', methods=['POST'])
 def api_testar_servidor():
@@ -100,9 +100,8 @@ def api_testar_servidor():
             return jsonify({'ok': True, 'msg': resultado.get('msg', 'Online!')})
     except Exception:
         return jsonify({
-            'ok': False,
-            'msg': f'Servidor não encontrado em {servidor}. '
-                   f'Verifique se o NLAG_Impressora.exe está rodando.'
+            'ok':  False,
+            'msg': f'Servidor não encontrado em {servidor}. Verifique se o NLAG_Impressora.exe está rodando.'
         })
 
 # ─────────────────────────────────────────
@@ -124,14 +123,13 @@ def api_imprimir_zpl():
             headers={'Content-Type': 'text/plain'},
             method='POST'
         )
-        with urllib.request.urlopen(req, timeout=8) as resp:
+        with urllib.request.urlopen(req, timeout=10) as resp:
             resultado = json_lib.loads(resp.read().decode())
             return jsonify(resultado)
     except urllib.error.URLError:
         return jsonify({
-            'ok': False,
-            'msg': f'❌ Servidor local não encontrado em {servidor}. '
-                   f'Verifique se o NLAG_Impressora.exe está rodando no PC.'
+            'ok':  False,
+            'msg': f'❌ Servidor local não encontrado em {servidor}. Verifique se o NLAG_Impressora.exe está rodando no PC.'
         }), 502
     except Exception as e:
         return jsonify({'ok': False, 'msg': f'❌ Erro: {str(e)}'}), 500
@@ -329,7 +327,8 @@ def entrada():
                         commit=True
                     )
                     barcode_img = gerar_barcode_base64(codigo)
-                    flash(f"✅ Entrada de {int(qtd) if qtd == int(qtd) else qtd} "
+                    flash(f"✅ Entrada de "
+                          f"{int(qtd) if qtd == int(qtd) else qtd} "
                           f"{material['unidade']} de {material['descricao']} registrada!",
                           "success")
             except ValueError:
