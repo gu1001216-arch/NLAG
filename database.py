@@ -1,16 +1,11 @@
-import os
-import psycopg2
+import psycopg2, os
 
 DATABASE_URL = os.environ.get('DATABASE_URL')
 
-def get_conn():
-    return psycopg2.connect(DATABASE_URL)
-
 def init_db():
-    conn = get_conn()
-    c    = conn.cursor()
-
-    c.execute('''
+    conn = psycopg2.connect(DATABASE_URL)
+    cur  = conn.cursor()
+    cur.execute('''
         CREATE TABLE IF NOT EXISTS materiais (
             id        SERIAL PRIMARY KEY,
             codigo    TEXT UNIQUE NOT NULL,
@@ -18,8 +13,7 @@ def init_db():
             unidade   TEXT NOT NULL
         )
     ''')
-
-    c.execute('''
+    cur.execute('''
         CREATE TABLE IF NOT EXISTS movimentacoes (
             id         SERIAL PRIMARY KEY,
             codigo     TEXT NOT NULL,
@@ -29,7 +23,6 @@ def init_db():
             observacao TEXT
         )
     ''')
-
     conn.commit()
     conn.close()
     print("✅ Banco PostgreSQL inicializado!")
