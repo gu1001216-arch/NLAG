@@ -31,7 +31,8 @@
       left: 0;
       width: 100mm;
       height: 50mm;
-      padding: 2.5mm 3mm 2mm 8mm;
+      /* padding uniforme — ocupa toda a largura */
+      padding: 2mm 3mm 2mm 3mm;
       font-family: Arial, Helvetica, sans-serif;
       display: flex;
       flex-direction: column;
@@ -45,18 +46,18 @@
       justify-content: space-between;
       align-items: center;
       border-bottom: 0.5mm solid #000;
-      padding-bottom: 1.2mm;
+      padding-bottom: 1mm;
       flex-shrink: 0;
     }
     .empresa {
-      font-size: 9pt;
+      font-size: 11pt;
       font-weight: 900;
       text-transform: uppercase;
       letter-spacing: 0.5px;
       color: #000;
     }
     .data {
-      font-size: 9pt; /* AUMENTADO: era 7pt */
+      font-size: 10pt;
       font-weight: 700;
       color: #000;
     }
@@ -69,12 +70,12 @@
       flex-shrink: 0;
     }
     .label-cod {
-      font-size: 9pt; /* AUMENTADO: era 7pt */
+      font-size: 10pt;
       font-weight: 700;
       color: #333;
     }
     .valor-codigo {
-      font-size: 17pt;
+      font-size: 20pt;
       font-weight: 900;
       letter-spacing: 1px;
       line-height: 1;
@@ -82,18 +83,18 @@
     }
     .badge-un {
       margin-left: auto;
-      font-size: 7.5pt;
+      font-size: 9pt;
       font-weight: 900;
       background: #000;
       color: #fff;
-      padding: 0.8mm 2mm;
+      padding: 0.8mm 2.5mm;
       border-radius: 2px;
       white-space: nowrap;
     }
 
-    /* DESCRIÇÃO */
+    /* DESCRIÇÃO — ocupa toda a largura */
     .descricao {
-      font-size: 8pt;
+      font-size: 10pt;
       font-weight: 700;
       text-transform: uppercase;
       color: #000;
@@ -103,9 +104,10 @@
       display: -webkit-box;
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
+      width: 100%;
     }
 
-    /* CÓDIGO DE BARRAS — maior */
+    /* CÓDIGO DE BARRAS — ocupa toda a largura */
     .barcode-wrap {
       flex: 1;
       display: flex;
@@ -116,13 +118,12 @@
       padding-top: 1mm;
     }
     .barcode-wrap img {
-      height: 14mm; /* AUMENTADO: era 10mm */
-      width: auto;
-      max-width: 86mm;
+      height: 14mm;
+      width: 94mm;      /* força barcode a esticar até a borda direita */
+      object-fit: fill;
       display: block;
       image-rendering: pixelated;
     }
-    /* barcode-texto REMOVIDO do HTML e do CSS */
 
   </style>
 </head>
@@ -146,7 +147,6 @@
   <div class="barcode-wrap">
     <img src="data:image/png;base64,{{ barcode_img }}"
          alt="{{ material.codigo }}">
-    <!-- numeração abaixo do barcode REMOVIDA -->
   </div>
   {% endif %}
 
