@@ -31,8 +31,8 @@
       left: 0;
       width: 100mm;
       height: 50mm;
-      /* ponto inicial deslocado 2cm para a direita: 3mm + 20mm = 23mm */
-      padding: 2mm 3mm 2mm 23mm;
+      /* +1cm direita: 3mm→13mm | +0,5cm baixo: 2mm→7mm */
+      padding: 7mm 3mm 2mm 13mm;
       font-family: Arial, Helvetica, sans-serif;
       display: flex;
       flex-direction: column;
@@ -92,7 +92,7 @@
       white-space: nowrap;
     }
 
-    /* DESCRIÇÃO */
+    /* DESCRIÇÃO — ocupa toda a largura */
     .descricao {
       font-size: 10pt;
       font-weight: 700;
@@ -107,7 +107,7 @@
       width: 100%;
     }
 
-    /* CÓDIGO DE BARRAS — centralizado */
+    /* CÓDIGO DE BARRAS — ocupa toda a largura */
     .barcode-wrap {
       flex: 1;
       display: flex;
@@ -116,15 +116,11 @@
       justify-content: center;
       border-top: 0.3mm solid #bbb;
       padding-top: 1mm;
-      /* margem negativa para centralizar na etiqueta inteira (100mm),
-         compensando o padding-left de 23mm */
-      margin-left: -10mm;
-      width: calc(100% + 10mm);
     }
     .barcode-wrap img {
       height: 14mm;
-      width: auto;
-      max-width: 86mm;
+      width: 94mm;
+      object-fit: fill;
       display: block;
       image-rendering: pixelated;
     }
