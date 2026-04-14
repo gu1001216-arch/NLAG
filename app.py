@@ -2,13 +2,9 @@ import os
 import io
 import base64
 import csv
-import urllib.request
-import urllib.error
-import json
 from datetime import datetime
 from flask import (Flask, render_template, request, redirect,
-                   url_for, session, flash, jsonify,
-                   Response, stream_with_context)
+                   url_for, session, flash, jsonify, Response)
 import psycopg2
 import psycopg2.extras
 import barcode as python_barcode
@@ -48,7 +44,7 @@ def query(sql, params=None, fetchone=False, fetchall=False, commit=False):
         conn.close()
 
 # ──────────────────────────────────────────────
-# Barcode – 300 DPI, quiet_zone=0, auto-crop
+# Barcode – 300 DPI, auto-crop
 # ──────────────────────────────────────────────
 def gerar_barcode_base64(codigo):
     try:
@@ -74,7 +70,6 @@ def gerar_barcode_base64(codigo):
         if bbox:
             img = img.crop(bbox)
 
-        # Altura fixa de 85px, largura proporcional — sem distorção
         razao = img.width / img.height
         nova_altura = 85
         nova_largura = int(nova_altura * razao)
@@ -87,8 +82,9 @@ def gerar_barcode_base64(codigo):
         app.logger.error(f'Barcode error: {e}')
         return None
 
-
-
+# ──────────────────────────────────────────────
+# Saldo
+# ──────────────────────────────────────────────
 def calcular_saldo(codigo):
     row = query(
         """SELECT
@@ -99,6 +95,16 @@ def calcular_saldo(codigo):
         (codigo,), fetchone=True
     )
     return float(row['saldo']) if row else 0.0
+
+# ──────────────────────────────────────────────
+# Formatar data_hora (datetime ou string)
+# ──────────────────────────────────────────────
+def fmt_dt(dh):
+    if dh is None:
+        return ''
+    if hasattr(dh, 'strftime'):
+        return dh.strftime('%d/%m/%Y %H:%M')
+    return str(dh)[:16]
 
 # ──────────────────────────────────────────────
 # Auth
@@ -135,9 +141,9 @@ def index():
     for m in materiais:
         s = calcular_saldo(m['codigo'])
         saldo.append({**m, 'saldo': s})
-    total_itens      = len(saldo)
-    total_com_saldo  = sum(1 for i in saldo if i['saldo'] > 0)
-    total_zerados    = sum(1 for i in saldo if i['saldo'] <= 0)
+    total_itens     = len(saldo)
+    total_com_saldo = sum(1 for i in saldo if i['saldo'] > 0)
+    total_zerados   = sum(1 for i in saldo if i['saldo'] <= 0)
     agora = datetime.now().strftime('%d/%m/%Y %H:%M')
     return render_template('index.html',
                            saldo=saldo,
@@ -154,9 +160,9 @@ def materiais():
     if request.method == 'POST':
         acao = request.form.get('acao')
         if acao == 'cadastrar':
-            codigo   = request.form['codigo'].strip().upper()
+            codigo    = request.form['codigo'].strip().upper()
             descricao = request.form['descricao'].strip().upper()
-            unidade  = request.form['unidade'].strip().upper()
+            unidade   = request.form['unidade'].strip().upper()
             try:
                 query(
                     'INSERT INTO materiais (codigo,descricao,unidade) VALUES (%s,%s,%s)',
@@ -186,13 +192,14 @@ def importar_csv():
         flash('❌ Nenhum arquivo enviado.', 'danger')
         return redirect(url_for('materiais'))
     raw = f.read()
+    texto = None
     for enc in ('utf-8-sig', 'latin-1', 'cp1252'):
         try:
             texto = raw.decode(enc)
             break
         except Exception:
             continue
-    else:
+    if texto is None:
         flash('❌ Encoding não reconhecido.', 'danger')
         return redirect(url_for('materiais'))
     delim = ';' if ';' in texto.splitlines()[0] else ','
@@ -201,9 +208,9 @@ def importar_csv():
     erros = []
     for i, row in enumerate(reader, 1):
         try:
-            codigo    = row.get('codigo','').strip().upper()
-            descricao = row.get('descricao','').strip().upper()
-            unidade   = row.get('unidade','UN').strip().upper()
+            codigo    = row.get('codigo', '').strip().upper()
+            descricao = row.get('descricao', '').strip().upper()
+            unidade   = row.get('unidade', 'UN').strip().upper()
             if not codigo:
                 continue
             query(
@@ -228,16 +235,16 @@ def importar_csv():
 def entrada():
     material    = None
     barcode_img = None
-    agora = datetime.now().strftime('%d/%m/%Y %H:%M')
+    agora      = datetime.now().strftime('%d/%m/%Y %H:%M')
     codigo_pre = request.args.get('codigo', '')
     if codigo_pre:
         material    = query('SELECT * FROM materiais WHERE codigo=%s',
                             (codigo_pre.upper(),), fetchone=True)
         barcode_img = gerar_barcode_base64(codigo_pre.upper()) if material else None
     if request.method == 'POST':
-        codigo      = request.form['codigo'].strip().upper()
-        quantidade  = request.form['quantidade'].strip()
-        observacao  = request.form.get('observacao', '').strip()
+        codigo     = request.form['codigo'].strip().upper()
+        quantidade = request.form['quantidade'].strip()
+        observacao = request.form.get('observacao', '').strip()
         try:
             qty = float(quantidade)
             if qty <= 0:
@@ -263,7 +270,7 @@ def entrada():
                            codigo_pre=codigo_pre)
 
 # ──────────────────────────────────────────────
-# Imprimir etiqueta (página de seleção)
+# Imprimir etiqueta
 # ──────────────────────────────────────────────
 @app.route('/imprimir_etiqueta', methods=['GET'])
 def imprimir_etiqueta():
@@ -281,7 +288,7 @@ def imprimir_etiqueta():
                            agora=agora)
 
 # ──────────────────────────────────────────────
-# Print route – opens auto-print popup
+# Print popup – sem login obrigatório
 # ──────────────────────────────────────────────
 @app.route('/print/<codigo>')
 def print_etiqueta(codigo):
@@ -338,16 +345,18 @@ def saida():
 def historico():
     codigo = request.args.get('codigo', '').strip().upper()
     tipo   = request.args.get('tipo', '').strip().upper()
-    sql    = """SELECT m.data_hora,m.tipo,m.codigo,mat.descricao,mat.unidade,
-                       m.quantidade,m.observacao
+    sql    = """SELECT m.data_hora, m.tipo, m.codigo, mat.descricao, mat.unidade,
+                       m.quantidade, m.observacao
                 FROM movimentacoes m
-                LEFT JOIN materiais mat ON mat.codigo=m.codigo
+                LEFT JOIN materiais mat ON mat.codigo = m.codigo
                 WHERE 1=1"""
     params = []
     if codigo:
-        sql += ' AND m.codigo=%s'; params.append(codigo)
-    if tipo in ('ENTRADA','SAIDA'):
-        sql += ' AND m.tipo=%s'; params.append(tipo)
+        sql += ' AND m.codigo=%s'
+        params.append(codigo)
+    if tipo in ('ENTRADA', 'SAIDA'):
+        sql += ' AND m.tipo=%s'
+        params.append(tipo)
     sql += ' ORDER BY m.data_hora DESC LIMIT 500'
     movs = query(sql, params, fetchall=True)
     agora = datetime.now().strftime('%d/%m/%Y %H:%M')
@@ -355,39 +364,58 @@ def historico():
                            filtro_codigo=codigo, filtro_tipo=tipo)
 
 # ──────────────────────────────────────────────
-# Exportar CSV
+# Exportar saldo CSV  ← CORRIGIDO
 # ──────────────────────────────────────────────
 @app.route('/exportar_saldo')
 def exportar_saldo():
     materiais = query('SELECT * FROM materiais ORDER BY codigo', fetchall=True)
-    def gerar():
-        yield 'Codigo;Descricao;Unidade;Saldo\n'
-        for m in materiais:
-            s = calcular_saldo(m['codigo'])
-            yield f'{m["codigo"]};{m["descricao"]};{m["unidade"]};{s}\n'
-    return Response(stream_with_context(gerar()),
-                    mimetype='text/csv',
-                    headers={'Content-Disposition': 'attachment;filename=saldo_estoque.csv'})
 
+    output = io.StringIO()
+    output.write('Codigo;Descricao;Unidade;Saldo\n')
+    for m in (materiais or []):
+        s = calcular_saldo(m['codigo'])
+        s_fmt = str(int(s)) if s == int(s) else f'{s:.2f}'
+        output.write(f'{m["codigo"]};{m["descricao"]};{m["unidade"]};{s_fmt}\n')
+
+    return Response(
+        output.getvalue().encode('utf-8-sig'),
+        mimetype='text/csv; charset=utf-8',
+        headers={'Content-Disposition': 'attachment; filename=saldo_estoque.csv'}
+    )
+
+# ──────────────────────────────────────────────
+# Exportar histórico CSV  ← CORRIGIDO
+# ──────────────────────────────────────────────
 @app.route('/exportar_historico')
 def exportar_historico():
     movs = query(
-        """SELECT m.data_hora,m.tipo,m.codigo,mat.descricao,mat.unidade,
-                  m.quantidade,m.observacao
+        """SELECT m.data_hora, m.tipo, m.codigo, mat.descricao, mat.unidade,
+                  m.quantidade, m.observacao
            FROM movimentacoes m
-           LEFT JOIN materiais mat ON mat.codigo=m.codigo
+           LEFT JOIN materiais mat ON mat.codigo = m.codigo
            ORDER BY m.data_hora DESC""",
         fetchall=True
     )
-    def gerar():
-        yield 'Data/Hora;Tipo;Codigo;Descricao;Unidade;Quantidade;Observacao\n'
-        for mv in movs:
-            dt = mv['data_hora'].strftime('%d/%m/%Y %H:%M') if mv['data_hora'] else ''
-            yield (f'{dt};{mv["tipo"]};{mv["codigo"]};{mv.get("descricao","")};'
-                   f'{mv.get("unidade","")};{mv["quantidade"]};{mv.get("observacao","")}\n')
-    return Response(stream_with_context(gerar()),
-                    mimetype='text/csv',
-                    headers={'Content-Disposition': 'attachment;filename=historico.csv'})
+
+    output = io.StringIO()
+    output.write('Data/Hora;Tipo;Codigo;Descricao;Unidade;Quantidade;Observacao\n')
+    for mv in (movs or []):
+        linha = (
+            f'{fmt_dt(mv["data_hora"])};'
+            f'{mv["tipo"]};'
+            f'{mv["codigo"]};'
+            f'{mv.get("descricao") or ""};'
+            f'{mv.get("unidade") or ""};'
+            f'{mv["quantidade"]};'
+            f'{mv.get("observacao") or ""}\n'
+        )
+        output.write(linha)
+
+    return Response(
+        output.getvalue().encode('utf-8-sig'),
+        mimetype='text/csv; charset=utf-8',
+        headers={'Content-Disposition': 'attachment; filename=historico.csv'}
+    )
 
 # ──────────────────────────────────────────────
 # API AJAX
